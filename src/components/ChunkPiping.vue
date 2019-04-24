@@ -10,9 +10,8 @@
 
 <script lang="ts">
 import { Component, Prop, Vue } from 'vue-property-decorator';
-import {PromiseLimiter} from '@/promise-limiter';
-import {PromiseSequentialContext} from '@/promise-sequential-context';
 import { createWriteStream } from 'streamsaver';
+import * as chunkPiping from '@/chunk-piping';
 
 
 function blobToUint8Array(blob: Blob): Promise<Uint8Array> {
@@ -63,120 +62,25 @@ export default class ChunkPiping extends Vue {
       return;
     }
 
-    // TODO: hard code number
-    const promiseLimiter = new PromiseLimiter(2);
-    // TODO: Hard code: chunk size
-    // NOTE: About 65KB
-    const reader = createFileReadableStream(file, 65536).getReader();
-    // NOTE: Be careful if you move chunkNum definition outside of this for loop
-    //       because chunkNum is used in a asynchronous callback
-    for (let chunkNum = 1; ;) {
-      const {done, value: chunk} = await reader.read();
-
-      await promiseLimiter.run(async () => {
-        // Send a chunk
-        const res = await fetch(`${this.serverUrl}/${this.dataId}/${chunkNum}`, {
-          method: 'POST',
-          body: chunk,
-        });
-        if (res.body === null) {
-          console.error('Unexpected: res.body === null');
-          return;
-        }
-        // Wait for body being complete
-        await res.body.pipeTo(new WritableStream({}));
-      });
-
-      // Increment chunk number
-      chunkNum++;
-
-      if (done) {
-        await promiseLimiter.run(async () => {
-          // Send a chunk
-          const res = await fetch(`${this.serverUrl}/${this.dataId}/${chunkNum}`, {
-            method: 'POST',
-            body: '',
-            headers: new Headers({
-              'Content-Length': '0',
-            }),
-          });
-          if (res.body === null) {
-            return;
-          }
-          // Wait for body being complete
-          await res.body.pipeTo(new WritableStream({}));
-          console.log('last push finish', chunkNum);
-        });
-        break;
-      }
-    }
-  }
-
-  private async* getGenerator(): AsyncIterable<{promise: Promise<Uint8Array>}> {
-    // TODO: hard code number
-    const promiseLimiter = new PromiseLimiter(2);
-
-    // NOTE: Infinite loop without break
-    // NOTE: Be careful if you move chunkNum definition outside of this for loop
-    //       because chunkNum is used in a asynchronous callback
-    for (let chunkNum = 1; ; chunkNum++) {
-      console.log('chunk', chunkNum);
-      const {promise: chunkPromise} = await promiseLimiter.run(async () => {
-        const res = await fetch(`${this.serverUrl}/${this.dataId}/${chunkNum}`);
-        if (res.body === null) {
-          console.error('Error: res.body === null');
-          return Uint8Array.from([]);
-        }
-
-        // Get all chunks
-        // NOTE: whole body is not too big because whole body is also a chunk.
-        const chunks: Uint8Array[] = [];
-        let totalLength: number = 0;
-        await res.body.pipeTo(new WritableStream<Uint8Array>({
-          write: (chunk) => {
-            chunks.push(chunk);
-            totalLength += chunk.byteLength;
-          },
-        }));
-        // Get whole bytes
-        // (from: https://qiita.com/hbjpn/items/dc4fbb925987d284f491)
-        const wholeBytes = new Uint8Array(totalLength);
-        let pos = 0;
-        for (const chunk of chunks) {
-          wholeBytes.set(chunk, pos);
-          pos += chunk.byteLength;
-        }
-        return wholeBytes;
-      });
-
-      yield {promise: chunkPromise};
-    }
-  }
-
-  private getReadableStream(): ReadableStream<Uint8Array> {
-    return new ReadableStream<Uint8Array>({
-      start: async (controller) => {
-        const psc = new PromiseSequentialContext();
-        for await (const {promise} of this.getGenerator()) {
-          // NOTE: Should not use await if use it, chunks are downloaded sequentially.
-          psc.run(async () => {
-            const chunk: Uint8Array = await promise;
-            // Chunk finish
-            if (chunk.byteLength === 0) {
-              controller.close();
-            } else {
-              controller.enqueue(chunk);
-            }
-          });
-        }
-      },
-    });
+    // Send
+    chunkPiping.sendReadableStream(
+      // TODO: Hard code: chunk size
+      // NOTE: About 65KB
+      createFileReadableStream(file, 65536),
+      // TODO: Hard code number
+      2,
+      this.serverUrl,
+      this.dataId,
+    );
   }
 
   private get(): void {
+    // Create get-readable-stream
+    // TODO: Hard code 2
+    const readableStream = chunkPiping.getReadableStream(2,  this.serverUrl,  this.dataId);
     const filename = 'download';
     // Save as file streamingly
-    this.getReadableStream().pipeTo(createWriteStream(filename));
+    readableStream.pipeTo(createWriteStream(filename));
   }
 }
 
