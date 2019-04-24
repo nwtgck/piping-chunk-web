@@ -1,16 +1,16 @@
 <template>
   <div id="app">
-    <ChunkPiping />
+    <PipingChunk />
   </div>
 </template>
 
 <script lang="ts">
 import { Component, Vue } from 'vue-property-decorator';
-import ChunkPiping from './components/ChunkPiping.vue';
+import PipingChunk from './components/PipingChunk.vue';
 
 @Component({
   components: {
-    ChunkPiping: ChunkPiping,
+    PipingChunk: PipingChunk,
   },
 })
 export default class App extends Vue {}

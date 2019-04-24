@@ -11,12 +11,12 @@
 <script lang="ts">
 import { Component, Prop, Vue } from 'vue-property-decorator';
 import { createWriteStream } from 'streamsaver';
-import * as chunkPiping from '@/chunk-piping';
+import * as pipingChunk from '@/piping-chunk';
 import * as utils from '@/utils';
 
 
 @Component
-export default class ChunkPiping extends Vue {
+export default class PipingChunk extends Vue {
   private dataId: string = '';
   private serverUrl: string = 'http://localhost:8080';
 
@@ -33,7 +33,7 @@ export default class ChunkPiping extends Vue {
     }
 
     // Send
-    chunkPiping.sendReadableStream(
+    pipingChunk.sendReadableStream(
       // TODO: Hard code: chunk size
       // NOTE: About 65KB
       utils.createFileReadableStream(file, 65536),
@@ -47,7 +47,7 @@ export default class ChunkPiping extends Vue {
   private get(): void {
     // Create get-readable-stream
     // TODO: Hard code 2
-    const readableStream = chunkPiping.getReadableStream(2,  this.serverUrl,  this.dataId);
+    const readableStream = pipingChunk.getReadableStream(2,  this.serverUrl,  this.dataId);
     const filename = 'download';
     // Save as file streamingly
     readableStream.pipeTo(createWriteStream(filename));
