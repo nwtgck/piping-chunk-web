@@ -64,7 +64,8 @@ export default class ChunkPiping extends Vue {
     // TODO: hard code number
     const promiseLimiter = new PromiseLimiter(2);
     // TODO: Hard code: chunk size
-    const reader = createFileReadableStream(file, 4096).getReader();
+    // NOTE: About 65KB
+    const reader = createFileReadableStream(file, 65536).getReader();
     // NOTE: Be careful if you move chunkNum definition outside of this for loop
     //       because chunkNum is used in a asynchronous callback
     for (let chunkNum = 1; ;) {
