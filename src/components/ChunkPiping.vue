@@ -12,6 +12,8 @@
 import { Component, Prop, Vue } from 'vue-property-decorator';
 import {PromiseLimiter} from '@/promise-limiter';
 import {PromiseSequentialContext} from '@/promise-sequential-context';
+import { createWriteStream } from 'streamsaver';
+
 
 function blobToUint8Array(blob: Blob): Promise<Uint8Array> {
   return new Promise((resolve) => {
@@ -151,30 +153,30 @@ export default class ChunkPiping extends Vue {
     }
   }
 
-  private async get() {
-    // Get as blob
-    // NOTE: This is not efficient because all data should be on memory. Find a way to save data as a file streamingly
-    const blob: Blob = await new Promise(async (resolve) => {
-      const psc = new PromiseSequentialContext();
-      const chunks: Uint8Array[] = [];
-
-      for await (const {promise} of this.getGenerator()) {
-        // NOTE: Should not use await if use it, chunks are downloaded sequentially.
-        psc.run(async () => {
-          const chunk: Uint8Array = await promise;
-          // Chunk finish
-          if (chunk.byteLength === 0) {
-            // (base: https://stackoverflow.com/a/19328891/2885946)
-            resolve(new Blob(chunks, {type : 'octet/stream'}));
-          }
-          chunks.push(chunk);
-        });
-      }
+  private getReadableStream(): ReadableStream<Uint8Array> {
+    return new ReadableStream<Uint8Array>({
+      start: async (controller) => {
+        const psc = new PromiseSequentialContext();
+        for await (const {promise} of this.getGenerator()) {
+          // NOTE: Should not use await if use it, chunks are downloaded sequentially.
+          psc.run(async () => {
+            const chunk: Uint8Array = await promise;
+            // Chunk finish
+            if (chunk.byteLength === 0) {
+              controller.close();
+            } else {
+              controller.enqueue(chunk);
+            }
+          });
+        }
+      },
     });
+  }
 
-    const blobUrl = URL.createObjectURL(blob);
-    window.open(blobUrl);
-    window.URL.revokeObjectURL(blobUrl);
+  private get(): void {
+    const filename = 'download';
+    // Save as file streamingly
+    this.getReadableStream().pipeTo(createWriteStream(filename));
   }
 }
 
