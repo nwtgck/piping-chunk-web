@@ -73,6 +73,8 @@ export default class PipingChunk extends Vue {
     const totalSize: number = file.size;
     // Show progress bar
     this.progressSetting.show = true;
+    // Disable indeterminate because it has percentage
+    this.progressSetting.indeterminate = false;
     // Set initial percentage
     this.progressSetting.percentage = 0;
 
@@ -92,6 +94,11 @@ export default class PipingChunk extends Vue {
   }
 
   private get(): void {
+    // Show progress bar
+    this.progressSetting.show = true;
+    // Enable indeterminate because it does NOT has percentage
+    this.progressSetting.indeterminate = true;
+
     // Create get-readable-stream
     const readableStream = pipingChunk.getReadableStream(
       this.nSimultaneousReqs,
@@ -100,7 +107,14 @@ export default class PipingChunk extends Vue {
     );
     const filename = 'download';
     // Save as file streamingly
-    readableStream.pipeTo(createWriteStream(filename));
+    const downloadPromise: Promise<void> = readableStream.pipeTo(createWriteStream(filename));
+
+    downloadPromise.finally(() => {
+      // Disable indeterminate because finished
+      this.progressSetting.indeterminate = false;
+      // Set percentage as 100%
+      this.progressSetting.percentage    = 100;
+    });
   }
 }
 
