@@ -23,7 +23,11 @@
       />
       <v-btn color="success" v-on:click="send()">Send</v-btn>
       <v-btn color="success" v-on:click="get()">Get</v-btn>
-<!--      <v-progress-linear :indeterminate="true"></v-progress-linear>-->
+      <v-progress-linear
+        v-show="progressSetting.show"
+        :indeterminate="progressSetting.indeterminate"
+        :value="progressSetting.percentage"
+      />
     </v-card>
     </v-flex>
   </v-layout>
@@ -43,6 +47,12 @@ export default class PipingChunk extends Vue {
   private serverUrl: string = 'https://ppng.ml';
   private nSimultaneousReqs: number = 2;
   private chunkByteSize: number = 65536; // NOTE: About 65KB
+  // Progress bar setting
+  private progressSetting: {show: boolean, indeterminate: boolean, percentage: number} = {
+    show: false,
+    indeterminate: false,
+    percentage: 0,
+  };
 
   private async send() {
     const files: FileList | null = (this.$refs.inputFile as HTMLInputElement).files;
@@ -56,9 +66,25 @@ export default class PipingChunk extends Vue {
       return;
     }
 
+    // Create ReadableStream from a file
+    const fileReadableStream = utils.createFileReadableStream(file, this.chunkByteSize);
+
+    // Get total size
+    const totalSize: number = file.size;
+    // Show progress bar
+    this.progressSetting.show = true;
+    // Set initial percentage
+    this.progressSetting.percentage = 0;
+
+    // Stream for progress bar
+    const progressStream: ReadableStream<Uint8Array> =
+      utils.getPregressReadableStream(fileReadableStream, (currentSize) => {
+        this.progressSetting.percentage = (currentSize / totalSize) * 100;
+      });
+
     // Send
     pipingChunk.sendReadableStream(
-      utils.createFileReadableStream(file, this.chunkByteSize),
+      progressStream,
       this.nSimultaneousReqs,
       this.serverUrl,
       this.dataId,
