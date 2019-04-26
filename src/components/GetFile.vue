@@ -12,11 +12,7 @@
     <v-text-field
       label="Simultaneous requests"
       v-model="nSimultaneousReqs"
-    />
-
-    <v-text-field
-      label="Chunk bytes"
-      v-model="chunkByteSize"
+      type="number"
     />
     <v-btn color="secondary" v-on:click="get()" block :disabled="!enableGetButton">
       Get
@@ -41,7 +37,6 @@ export default class GetFile extends Vue {
   // TODO: Hard code
   private serverUrl: string = 'https://ppng.ml';
   private nSimultaneousReqs: number = 2;
-  private chunkByteSize: number = 65536; // NOTE: About 65KB
   // Progress bar setting
   private progressSetting: {show: boolean, indeterminate: boolean, percentage: number} = {
     show: false,

@@ -18,11 +18,13 @@
     <v-text-field
       label="Simultaneous requests"
       v-model="nSimultaneousReqs"
+      type="number"
     />
 
     <v-text-field
       label="Chunk bytes"
       v-model="chunkByteSize"
+      type="number"
     />
     <v-btn color="primary" v-on:click="send()" block :disabled="!enableSendButton">
       Send
