@@ -28,3 +28,20 @@ export function createFileReadableStream(file: File, chunkSize: number): Readabl
     },
   });
 }
+
+export function getPregressReadableStream(
+  readableStream: ReadableStream<Uint8Array>,
+  onCurrentSize: (currentSize: number) => void,
+): ReadableStream<Uint8Array> {
+
+  let currentSize = 0;
+  const transformStream = new TransformStream<Uint8Array, Uint8Array>({
+    transform: (chunk, controller) => {
+      controller.enqueue(chunk);
+      currentSize += chunk.byteLength;
+      onCurrentSize(currentSize);
+    },
+  });
+
+  return readableStream.pipeThrough(transformStream);
+}

@@ -1,6 +1,6 @@
 {
   "name": "piping-chunk",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "serve": "vue-cli-service serve",
@@ -9,17 +9,21 @@
   },
   "dependencies": {
     "core-js": "^2.6.5",
+    "filepond": "^4.4.0",
     "register-service-worker": "^1.6.2",
     "streamsaver": "^1.2.0",
     "vue": "^2.6.10",
     "vue-class-component": "^7.0.2",
-    "vue-property-decorator": "^8.1.0"
+    "vue-filepond": "^5.1.0",
+    "vue-property-decorator": "^8.1.0",
+    "vuetify": "^1.5.13"
   },
   "devDependencies": {
     "@vue/cli-plugin-babel": "^3.6.0",
     "@vue/cli-plugin-pwa": "^3.6.0",
     "@vue/cli-plugin-typescript": "^3.6.0",
     "@vue/cli-service": "^3.6.0",
+    "material-design-icons-iconfont": "^4.0.5",
     "typescript": "^3.4.5",
     "vue-template-compiler": "^2.5.21"
   }
