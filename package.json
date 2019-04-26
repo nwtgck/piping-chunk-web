@@ -9,10 +9,12 @@
   },
   "dependencies": {
     "core-js": "^2.6.5",
+    "filepond": "^4.4.0",
     "register-service-worker": "^1.6.2",
     "streamsaver": "^1.2.0",
     "vue": "^2.6.10",
     "vue-class-component": "^7.0.2",
+    "vue-filepond": "^5.1.0",
     "vue-property-decorator": "^8.1.0",
     "vuetify": "^1.5.13"
   },

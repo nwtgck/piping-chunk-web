@@ -2,7 +2,12 @@
   <v-layout>
     <v-flex xs12 sm6 offset-sm3 offset-md3 md6>
     <v-card style="padding: 1em;">
-      <input type="file" ref="inputFile"><br>
+      <file-pond
+        ref="pond"
+        label-idle="<img src='img/file-icon.svg' style='width: 2em'><br>Drop a file here or <span class='filepond--label-action'>Browse</span>"
+        allow-multiple="false"
+        maxFiles="1"
+      />
       <v-text-field
         label="Server URL"
         v-model="serverUrl"
@@ -39,8 +44,17 @@ import { createWriteStream } from 'streamsaver';
 import * as pipingChunk from '@/piping-chunk';
 import * as utils from '@/utils';
 
+import vueFilePond from 'vue-filepond';
+import 'filepond/dist/filepond.min.css';
 
-@Component
+// Create component
+const FilePond = vueFilePond();
+
+@Component({
+  components: {
+    FilePond,
+  },
+})
 export default class PipingChunk extends Vue {
   private dataId: string = '';
   // TODO: Hard code
@@ -55,16 +69,13 @@ export default class PipingChunk extends Vue {
   };
 
   private async send() {
-    const files: FileList | null = (this.$refs.inputFile as HTMLInputElement).files;
-    if (files === null) {
-      console.error('Error: No file list');
-      return;
-    }
-    const file: File | null = files.item(0);
-    if (file === null) {
+    // Get file in FilePond
+    const pondFile: {file: File} | null = (this.$refs.pond as any).getFile();
+    if (pondFile === null) {
       console.error('Error: No first file');
       return;
     }
+    const file: File = pondFile.file;
 
     // Create ReadableStream from a file
     const fileReadableStream = utils.createFileReadableStream(file, this.chunkByteSize);
