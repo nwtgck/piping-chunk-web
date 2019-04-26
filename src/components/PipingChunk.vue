@@ -1,16 +1,32 @@
 <template>
-  <div>
-    <input type="file" ref="inputFile"><br>
-    <input type="text" v-model="serverUrl" placeholder="Server URL"><br>
-    <input type="text" v-model="dataId" placeholder="Data ID"><br>
-    <button v-on:click="send()">Send</button>
-    <button v-on:click="get()">Get</button>
-    <details>
-      <summary>Advanced</summary>
-      Simultaneous requests: <input type="number" v-model="nSimultaneousReqs"><br>
-      Chunk byte size: <input type="number" v-model="chunkByteSize"><br>
-    </details>
-  </div>
+  <v-layout>
+    <v-flex xs12 sm6 offset-sm3 offset-md3 md6>
+    <v-card style="padding: 1em;">
+      <input type="file" ref="inputFile"><br>
+      <v-text-field
+        label="Server URL"
+        v-model="serverUrl"
+      />
+      <v-text-field
+        label="Data ID"
+        v-model="dataId"
+        placeholder="e.g. mydata"
+      />
+      <v-text-field
+        label="Simultaneous requests"
+        v-model="nSimultaneousReqs"
+      />
+
+      <v-text-field
+        label="Chunk bytes"
+        v-model="chunkByteSize"
+      />
+      <v-btn color="success" v-on:click="send()">Send</v-btn>
+      <v-btn color="success" v-on:click="get()">Get</v-btn>
+<!--      <v-progress-linear :indeterminate="true"></v-progress-linear>-->
+    </v-card>
+    </v-flex>
+  </v-layout>
 </template>
 
 <script lang="ts">
