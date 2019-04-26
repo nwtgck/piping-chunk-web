@@ -18,7 +18,7 @@
       label="Chunk bytes"
       v-model="chunkByteSize"
     />
-    <v-btn color="secondary" v-on:click="get()" block>
+    <v-btn color="secondary" v-on:click="get()" block :disabled="!enableGetButton">
       Get
       <v-icon right dark>file_download</v-icon>
     </v-btn>
@@ -48,8 +48,13 @@ export default class GetFile extends Vue {
     indeterminate: false,
     percentage: 0,
   };
+  // Whether get-button is available
+  private enableGetButton: boolean = true;
 
   private get(): void {
+    // Disable the button
+    this.enableGetButton = false;
+
     // Show progress bar
     this.progressSetting.show = true;
     // Enable indeterminate because it does NOT has percentage
@@ -70,6 +75,8 @@ export default class GetFile extends Vue {
       this.progressSetting.indeterminate = false;
       // Set percentage as 100%
       this.progressSetting.percentage    = 100;
+      // Enable the button again
+      this.enableGetButton = true;
     });
   }
 }

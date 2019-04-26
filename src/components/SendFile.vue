@@ -24,7 +24,7 @@
       label="Chunk bytes"
       v-model="chunkByteSize"
     />
-    <v-btn color="primary" v-on:click="send()" block>
+    <v-btn color="primary" v-on:click="send()" block :disabled="!enableSendButton">
       Send
       <v-icon right dark>file_upload</v-icon>
     </v-btn>
@@ -62,6 +62,8 @@ export default class SendFile extends Vue {
     show: false,
     percentage: 0,
   };
+  // Whether send button is available
+  private enableSendButton: boolean = true;
 
   private async send() {
     // Get file in FilePond
@@ -70,6 +72,9 @@ export default class SendFile extends Vue {
       console.error('Error: No first file');
       return;
     }
+    // Disable the button
+    this.enableSendButton = false;
+    // Get the file
     const file: File = pondFile.file;
 
     // Create ReadableStream from a file
@@ -89,12 +94,17 @@ export default class SendFile extends Vue {
       });
 
     // Send
-    pipingChunk.sendReadableStream(
+    const sendPromise: Promise<void> = pipingChunk.sendReadableStream(
       progressStream,
       this.nSimultaneousReqs,
       this.serverUrl,
       this.dataId,
     );
+
+    sendPromise.finally(() => {
+      // Enable the button again
+      this.enableSendButton = true;
+    });
   }
 }
 
