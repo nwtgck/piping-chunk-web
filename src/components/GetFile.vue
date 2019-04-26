@@ -18,7 +18,10 @@
       label="Chunk bytes"
       v-model="chunkByteSize"
     />
-    <v-btn color="success" v-on:click="get()">Get</v-btn>
+    <v-btn color="secondary" v-on:click="get()" block>
+      Get
+      <v-icon right dark>file_download</v-icon>
+    </v-btn>
     <v-progress-linear
       v-show="progressSetting.show"
       :indeterminate="progressSetting.indeterminate"

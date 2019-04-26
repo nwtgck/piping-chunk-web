@@ -24,7 +24,10 @@
       label="Chunk bytes"
       v-model="chunkByteSize"
     />
-    <v-btn color="success" v-on:click="send()">Send</v-btn>
+    <v-btn color="primary" v-on:click="send()" block>
+      Send
+      <v-icon right dark>file_upload</v-icon>
+    </v-btn>
     <v-progress-linear
       v-show="progressSetting.show"
       :value="progressSetting.percentage"

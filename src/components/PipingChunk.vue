@@ -6,9 +6,11 @@
         <v-btn-toggle v-model="sendOrGet" mandatory style="margin-bottom: 2em;">
           <v-btn flat value="send">
             Send
+            <v-icon right dark>file_upload</v-icon>
           </v-btn>
           <v-btn flat value="get">
             Get
+            <v-icon right dark>file_download</v-icon>
           </v-btn>
         </v-btn-toggle>
 
