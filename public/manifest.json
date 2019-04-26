@@ -1,6 +1,6 @@
 {
-  "name": "chunk-piping",
-  "short_name": "chunk-piping",
+  "name": "piping-chunk",
+  "short_name": "piping-chunk",
   "icons": [
     {
       "src": "./img/icons/android-chrome-192x192.png",

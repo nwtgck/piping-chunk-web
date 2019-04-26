@@ -1,29 +1,7 @@
-# chunk-piping
+# piping-chunk
+[![Netlify Status](https://api.netlify.com/api/v1/badges/3d32ead9-f6e4-4f4e-978d-b675288e202a/deploy-status)](https://app.netlify.com/sites/piping-chunk/deploys)
 
-## Project setup
-```
-npm install
-```
+Chunked Data Transfer via Piping Server for Web Browser
 
-### Compiles and hot-reloads for development
-```
-npm run serve
-```
-
-### Compiles and minifies for production
-```
-npm run build
-```
-
-### Run your tests
-```
-npm run test
-```
-
-### Lints and fixes files
-```
-npm run lint
-```
-
-### Customize configuration
-See [Configuration Reference](https://cli.vuejs.org/config/).
+## Application
+<https://piping-chunk.netlify.com>
