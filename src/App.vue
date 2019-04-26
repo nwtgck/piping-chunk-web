@@ -1,5 +1,6 @@
 <template>
   <div id="app">
+    <h1>Piping Chunk</h1>
     <PipingChunk />
   </div>
 </template>

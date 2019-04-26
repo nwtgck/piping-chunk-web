@@ -5,6 +5,11 @@
     <input type="text" v-model="dataId" placeholder="Data ID"><br>
     <button v-on:click="send()">Send</button>
     <button v-on:click="get()">Get</button>
+    <details>
+      <summary>Advanced</summary>
+      Simultaneous requests: <input type="number" v-model="nSimultaneousReqs"><br>
+      Chunk byte size: <input type="number" v-model="chunkByteSize"><br>
+    </details>
   </div>
 </template>
 
@@ -18,7 +23,10 @@ import * as utils from '@/utils';
 @Component
 export default class PipingChunk extends Vue {
   private dataId: string = '';
-  private serverUrl: string = 'http://localhost:8080';
+  // TODO: Hard code
+  private serverUrl: string = 'https://ppng.ml';
+  private nSimultaneousReqs: number = 2;
+  private chunkByteSize: number = 65536; // NOTE: About 65KB
 
   private async send() {
     const files: FileList | null = (this.$refs.inputFile as HTMLInputElement).files;
@@ -34,11 +42,8 @@ export default class PipingChunk extends Vue {
 
     // Send
     pipingChunk.sendReadableStream(
-      // TODO: Hard code: chunk size
-      // NOTE: About 65KB
-      utils.createFileReadableStream(file, 65536),
-      // TODO: Hard code number
-      2,
+      utils.createFileReadableStream(file, this.chunkByteSize),
+      this.nSimultaneousReqs,
       this.serverUrl,
       this.dataId,
     );
@@ -46,8 +51,11 @@ export default class PipingChunk extends Vue {
 
   private get(): void {
     // Create get-readable-stream
-    // TODO: Hard code 2
-    const readableStream = pipingChunk.getReadableStream(2,  this.serverUrl,  this.dataId);
+    const readableStream = pipingChunk.getReadableStream(
+      this.nSimultaneousReqs,
+      this.serverUrl,
+      this.dataId,
+    );
     const filename = 'download';
     // Save as file streamingly
     readableStream.pipeTo(createWriteStream(filename));
@@ -63,7 +71,7 @@ h3 {
 }
 ul {
   list-style-type: none;
-  padding: 0;
+  padding: 0
 }
 li {
   display: inline-block;
