@@ -45,3 +45,11 @@ export function getPregressReadableStream(
 
   return readableStream.pipeThrough(transformStream);
 }
+
+export async function passphraseToKey(passphrase: string): Promise<Uint8Array> {
+  // Convert passphrase string to Uint8Array
+  const passphraseU8Array: Uint8Array = new TextEncoder().encode(passphrase);
+  // Generate key from passphrase by SHA-2156
+  const key = new Uint8Array(await crypto.subtle.digest('SHA-256', passphraseU8Array));
+  return key;
+}
