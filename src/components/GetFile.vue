@@ -10,6 +10,12 @@
       placeholder="e.g. mydata"
     />
     <v-text-field
+      label="Passphrase (optional)"
+      v-model="passphrase"
+      placeholder="Input passphrase"
+      type="password"
+    />
+    <v-text-field
       label="Simultaneous requests"
       v-model="nSimultaneousReqs"
       type="number"
@@ -30,10 +36,13 @@
 import { Component, Prop, Vue } from 'vue-property-decorator';
 import { createWriteStream } from 'streamsaver';
 import * as pipingChunk from '@/piping-chunk';
+import * as utils from '@/utils';
+import * as aes128gcmStream from 'aes128gcm-stream';
 
 @Component
 export default class GetFile extends Vue {
   private dataId: string = '';
+  private passphrase: string = '';
   // TODO: Hard code
   private serverUrl: string = 'https://ppng.ml';
   private nSimultaneousReqs: number = 2;
@@ -46,7 +55,7 @@ export default class GetFile extends Vue {
   // Whether get-button is available
   private enableGetButton: boolean = true;
 
-  private get(): void {
+  private async get(): Promise<void> {
     // Disable the button
     this.enableGetButton = false;
 
@@ -61,9 +70,17 @@ export default class GetFile extends Vue {
       this.serverUrl,
       this.dataId,
     );
+    // Generate key from passphrase by SHA-2156
+    const key = await utils.passphraseToKey(this.passphrase);
+    // Decrypt
+    const encryptStream = aes128gcmStream.decryptStream(
+      readableStream,
+      key,
+    );
+
     const filename = 'download';
     // Save as file streamingly
-    const downloadPromise: Promise<void> = readableStream.pipeTo(createWriteStream(filename));
+    const downloadPromise: Promise<void> = encryptStream.pipeTo(createWriteStream(filename));
 
     downloadPromise.finally(() => {
       // Disable indeterminate because finished

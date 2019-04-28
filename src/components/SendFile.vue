@@ -16,6 +16,12 @@
       placeholder="e.g. mydata"
     />
     <v-text-field
+      label="Passphrase (optional)"
+      v-model="passphrase"
+      placeholder="Input passphrase"
+      type="password"
+    />
+    <v-text-field
       label="Simultaneous requests"
       v-model="nSimultaneousReqs"
       type="number"
@@ -41,6 +47,7 @@
 import { Component, Prop, Vue } from 'vue-property-decorator';
 import * as pipingChunk from '@/piping-chunk';
 import * as utils from '@/utils';
+import * as aes128gcmStream from 'aes128gcm-stream';
 
 import vueFilePond from 'vue-filepond';
 import 'filepond/dist/filepond.min.css';
@@ -55,6 +62,7 @@ const FilePond = vueFilePond();
 })
 export default class SendFile extends Vue {
   private dataId: string = '';
+  private passphrase: string = '';
   // TODO: Hard code
   private serverUrl: string = 'https://ppng.ml';
   private nSimultaneousReqs: number = 2;
@@ -94,10 +102,16 @@ export default class SendFile extends Vue {
       utils.getPregressReadableStream(fileReadableStream, (currentSize) => {
         this.progressSetting.percentage = (currentSize / totalSize) * 100;
       });
-
+    // Generate key from passphrase by SHA-2156
+    const key = await utils.passphraseToKey(this.passphrase);
+    // Encrypt
+    const encryptStream = aes128gcmStream.encryptStream(
+      progressStream,
+      key,
+    );
     // Send
     const sendPromise: Promise<void> = pipingChunk.sendReadableStream(
-      progressStream,
+      encryptStream,
       this.nSimultaneousReqs,
       this.serverUrl,
       this.dataId,
