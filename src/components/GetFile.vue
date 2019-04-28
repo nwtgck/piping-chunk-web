@@ -81,7 +81,8 @@ export default class GetFile extends Vue {
       key,
     );
 
-    const filename = 'download';
+    // Use data ID as file name
+    const filename = this.dataId;
     // Save as file streamingly
     const downloadPromise: Promise<void> = encryptStream.pipeTo(createWriteStream(filename));
 
