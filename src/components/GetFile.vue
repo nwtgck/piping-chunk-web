@@ -13,7 +13,9 @@
       label="Passphrase (optional)"
       v-model="passphrase"
       placeholder="Input passphrase"
-      type="password"
+      :type="showPassphrase ? 'text' : 'password'"
+      :append-icon="showPassphrase ? 'visibility' : 'visibility_off'"
+      @click:append="showPassphrase = !showPassphrase"
     />
     <v-text-field
       label="Simultaneous requests"
@@ -43,6 +45,7 @@ import * as aes128gcmStream from 'aes128gcm-stream';
 export default class GetFile extends Vue {
   private dataId: string = '';
   private passphrase: string = '';
+  private showPassphrase: boolean = false;
   // TODO: Hard code
   private serverUrl: string = 'https://ppng.ml';
   private nSimultaneousReqs: number = 2;

@@ -19,7 +19,9 @@
       label="Passphrase (optional)"
       v-model="passphrase"
       placeholder="Input passphrase"
-      type="password"
+      :type="showPassphrase ? 'text' : 'password'"
+      :append-icon="showPassphrase ? 'visibility' : 'visibility_off'"
+      @click:append="showPassphrase = !showPassphrase"
     />
     <v-text-field
       label="Simultaneous requests"
@@ -63,6 +65,7 @@ const FilePond = vueFilePond();
 export default class SendFile extends Vue {
   private dataId: string = '';
   private passphrase: string = '';
+  private showPassphrase: boolean = false;
   // TODO: Hard code
   private serverUrl: string = 'https://ppng.ml';
   private nSimultaneousReqs: number = 2;
