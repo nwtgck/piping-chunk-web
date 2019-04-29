@@ -73,18 +73,27 @@ export default class GetFile extends Vue {
       this.serverUrl,
       this.dataId,
     );
-    // Generate key from passphrase by SHA-2156
-    const key = await utils.passphraseToKey(this.passphrase);
-    // Decrypt
-    const encryptStream = aes128gcmStream.decryptStream(
-      readableStream,
-      key,
-    );
+
+
+    // Create download stream
+    const downloadStream: ReadableStream<Uint8Array> = await (async () => {
+      // If passphrase is empty
+      if (this.passphrase === '') {
+        return readableStream;
+      } else {
+        // Generate key from passphrase by SHA-2156
+        const key = await utils.passphraseToKey(this.passphrase);
+        return aes128gcmStream.decryptStream(
+          readableStream,
+          key,
+        );
+      }
+    })();
 
     // Use data ID as file name
     const filename = this.dataId;
     // Save as file streamingly
-    const downloadPromise: Promise<void> = encryptStream.pipeTo(createWriteStream(filename));
+    const downloadPromise: Promise<void> = downloadStream.pipeTo(createWriteStream(filename));
 
     downloadPromise.finally(() => {
       // Disable indeterminate because finished

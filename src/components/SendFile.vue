@@ -105,16 +105,26 @@ export default class SendFile extends Vue {
       utils.getPregressReadableStream(fileReadableStream, (currentSize) => {
         this.progressSetting.percentage = (currentSize / totalSize) * 100;
       });
-    // Generate key from passphrase by SHA-2156
-    const key = await utils.passphraseToKey(this.passphrase);
-    // Encrypt
-    const encryptStream = aes128gcmStream.encryptStream(
-      progressStream,
-      key,
-    );
+
+    // Create upload stream
+    const uploadStream: ReadableStream<Uint8Array> = await (async () => {
+      // If passphrase is empty
+      if (this.passphrase === '') {
+        return progressStream;
+      } else {
+        // Generate key from passphrase by SHA-2156
+        const key = await utils.passphraseToKey(this.passphrase);
+        // Encrypt
+        return aes128gcmStream.encryptStream(
+          progressStream,
+          key,
+        );
+      }
+    })();
+
     // Send
     const sendPromise: Promise<void> = pipingChunk.sendReadableStream(
-      encryptStream,
+      uploadStream,
       this.nSimultaneousReqs,
       this.serverUrl,
       this.dataId,
