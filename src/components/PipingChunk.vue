@@ -67,6 +67,10 @@
         />
       </v-card>
     </v-flex>
+    <v-snackbar v-model="showsSnackbar"
+                color="error">
+      {{ snackbarMessage }}
+    </v-snackbar>
   </v-layout>
 </template>
 
@@ -106,12 +110,29 @@ export default class PipingChunk extends Vue {
   };
   // Whether send/get button is available
   private enableActionButton: boolean = true;
+  // Show snackbar
+  private showsSnackbar: boolean = false;
+  // Message of snackbar
+  private snackbarMessage: string = '';
+
+  // Show error message
+  private showSnackbar(message: string): void {
+    this.showsSnackbar = true;
+    this.snackbarMessage = message;
+  }
 
   private async send() {
     // Get file in FilePond
     const pondFile: {file: File} | null = (this.$refs.pond as any).getFile();
     if (pondFile === null) {
-      console.error('Error: No first file');
+      // Show error message
+      this.showSnackbar('Error: No file selected');
+      return;
+    }
+    // If Data ID is empty
+    if (this.dataId === '') {
+      // Show error message
+      this.showSnackbar('Error: Data ID is required');
       return;
     }
     // Disable the button
@@ -168,6 +189,12 @@ export default class PipingChunk extends Vue {
   }
 
   private async get(): Promise<void> {
+    // If Data ID is empty
+    if (this.dataId === '') {
+      // Show error message
+      this.showSnackbar('Error: Data ID is required');
+      return;
+    }
     // Disable the button
     this.enableActionButton = false;
 
