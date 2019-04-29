@@ -1,4 +1,4 @@
-import {PromiseLimiter} from '@/promise-limiter';
+import {PromiseLimiter} from 'promise-limiter';
 import {PromiseSequentialContext} from '@/promise-sequential-context';
 
 export async function sendReadableStream(
