@@ -241,49 +241,41 @@ export default class PipingChunk extends Vue {
 
     // Use data ID as file name
     const filename = this.dataId;
-    // Promise notifying download finish
-    const downloadPromise: Promise<void> = (async () => {
-      // If stream-download is supported
-      if (streamSaver.supported) {
-        // Save as file streamingly
-        return downloadStream.pipeTo(
-          streamSaver.createWriteStream(filename),
-        );
-      } else {
-        // Read up chunks and generate blob
-        const chunks: Uint8Array[] = [];
-        const reader = downloadStream.getReader();
-        while (true) {
-          const {done, value} = await reader.read();
-          if (done) {
-            break;
-          }
-          chunks.push(value);
+
+    // If stream-download is supported
+    if (streamSaver.supported) {
+      // Save as file streamingly
+      await downloadStream.pipeTo(
+        streamSaver.createWriteStream(filename),
+      );
+    } else {
+      // Read up chunks and generate blob
+      const chunks: Uint8Array[] = [];
+      const reader = downloadStream.getReader();
+      while (true) {
+        const {done, value} = await reader.read();
+        if (done) {
+          break;
         }
-        const blob = new Blob(chunks);
-        // Generate Blob URL and download
-        const blobUrl = URL.createObjectURL(blob);
-        const aTag = document.createElement('a');
-        aTag.href = blobUrl;
-        aTag.download = filename;
-        document.body.appendChild(aTag);
-        aTag.click();
-        URL.revokeObjectURL(blobUrl);
+        chunks.push(value);
       }
-    })();
+      const blob = new Blob(chunks);
+      // Generate Blob URL and download
+      const blobUrl = URL.createObjectURL(blob);
+      const aTag = document.createElement('a');
+      aTag.href = blobUrl;
+      aTag.download = filename;
+      document.body.appendChild(aTag);
+      aTag.click();
+      URL.revokeObjectURL(blobUrl);
+    }
 
-    // Wait download not to block popup-download
-    await downloadPromise;
-
-    // Do after download
-    downloadPromise.finally(() => {
-      // Disable indeterminate because finished
-      this.progressSetting.indeterminate = false;
-      // Set percentage as 100%
-      this.progressSetting.percentage    = 100;
-      // Enable the button again
-      this.enableActionButton = true;
-    });
+    // Disable indeterminate because finished
+    this.progressSetting.indeterminate = false;
+    // Set percentage as 100%
+    this.progressSetting.percentage    = 100;
+    // Enable the button again
+    this.enableActionButton = true;
   }
 }
 
