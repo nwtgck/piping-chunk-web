@@ -1,6 +1,6 @@
 <template>
   <v-layout>
-    <v-flex xs12 sm6 offset-sm3 offset-md3 md6>
+    <v-flex xs12 sm8 offset-sm2 offset-md3 md6>
       <v-card style="padding: 1em;">
 
         <v-btn-toggle v-model="sendOrGet" mandatory style="margin-bottom: 2em;">
