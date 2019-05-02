@@ -61,11 +61,12 @@ async function* getGenerator(
   // Create promise limiter
   const promiseLimiter = new PromiseLimiter(promiseLimit);
 
+  // Whether chunks are finish or not
+  let chunkDone = false;
+
   // NOTE: Infinite loop without break
-  // NOTE: Be careful if you move chunkNum definition outside of this for loop
-  //       because chunkNum is used in a asynchronous callback
-  for (let chunkNum = 1; ; chunkNum++) {
-    console.log('chunk', chunkNum);
+  for (let chunkNum = 1; !chunkDone ; chunkNum++) {
+    console.log('chunkNum', chunkNum);
     const {promise: chunkPromise} = await promiseLimiter.run(async () => {
       const res = await fetch(`${serverUrl}/${dataId}/${chunkNum}`);
       if (res.body === null) {
@@ -77,12 +78,15 @@ async function* getGenerator(
       // NOTE: whole body is not too big because whole body is also a chunk.
       const chunks: Uint8Array[] = [];
       let totalLength: number = 0;
-      await res.body.pipeTo(new WritableStream<Uint8Array>({
-        write: (chunk) => {
-          chunks.push(chunk);
-          totalLength += chunk.byteLength;
-        },
-      }));
+      const reader = res.body.getReader();
+      while (true) {
+        const {done, value} = await reader.read();
+        if (done) {
+          break;
+        }
+        chunks.push(value);
+        totalLength += value.byteLength;
+      }
       // Get whole bytes
       // (from: https://qiita.com/hbjpn/items/dc4fbb925987d284f491)
       const wholeBytes = new Uint8Array(totalLength);
@@ -91,6 +95,14 @@ async function* getGenerator(
         wholeBytes.set(chunk, pos);
         pos += chunk.byteLength;
       }
+
+      // If whole bytes are 0
+      if (wholeBytes.byteLength === 0) {
+        // Set chunk-done flag on
+        // NOTE: The future loop should be end. Of Course some useless processes are proceeded.
+        chunkDone = true;
+      }
+
       return wholeBytes;
     });
 

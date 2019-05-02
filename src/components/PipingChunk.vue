@@ -52,6 +52,12 @@
           Send
           <v-icon right dark>file_upload</v-icon>
         </v-btn>
+        <v-alert :value="sendOrGet === 'get' && !streamDownloadSupported"
+                 type="warning"
+        >
+          This browser does NOT support stream-download.<br>
+          Whole file data will be temporary on the memory.
+        </v-alert>
         <v-btn v-if="sendOrGet === 'get'"
                color="secondary"
                v-on:click="get()"
@@ -76,7 +82,7 @@
 
 <script lang="ts">
 import { Component, Prop, Vue } from 'vue-property-decorator';
-import { createWriteStream } from 'streamsaver';
+import * as streamSaver from 'streamsaver'; // NOTE: load before streams polyfill to detect support
 import * as pipingChunk from '@/piping-chunk';
 import * as utils from '@/utils';
 import * as aes128gcmStream from 'aes128gcm-stream';
@@ -84,6 +90,19 @@ import * as aes128gcmStream from 'aes128gcm-stream';
 import vueFilePond from 'vue-filepond';
 import 'filepond/dist/filepond.min.css';
 
+
+(async () => {
+  try {
+    const _ = TransformStream;
+  } catch (err) {
+    // Detect ReferenceError
+    // Use polyfill
+    const webStreamsPolyfill = await import('web-streams-polyfill');
+    ReadableStream  = webStreamsPolyfill.ReadableStream;
+    WritableStream  = webStreamsPolyfill.WritableStream;
+    TransformStream = webStreamsPolyfill.TransformStream;
+  }
+})();
 
 // Create component
 const FilePond = vueFilePond();
@@ -114,6 +133,8 @@ export default class PipingChunk extends Vue {
   private showsSnackbar: boolean = false;
   // Message of snackbar
   private snackbarMessage: string = '';
+  // Whether stream-download is supported
+  private readonly streamDownloadSupported = streamSaver.supported;
 
   // Show error message
   private showSnackbar(message: string): void {
@@ -228,17 +249,41 @@ export default class PipingChunk extends Vue {
 
     // Use data ID as file name
     const filename = this.dataId;
-    // Save as file streamingly
-    const downloadPromise: Promise<void> = downloadStream.pipeTo(createWriteStream(filename));
 
-    downloadPromise.finally(() => {
-      // Disable indeterminate because finished
-      this.progressSetting.indeterminate = false;
-      // Set percentage as 100%
-      this.progressSetting.percentage    = 100;
-      // Enable the button again
-      this.enableActionButton = true;
-    });
+    // If stream-download is supported
+    if (streamSaver.supported) {
+      // Save as file streamingly
+      await downloadStream.pipeTo(
+        streamSaver.createWriteStream(filename),
+      );
+    } else {
+      // Read up chunks and generate blob
+      const chunks: Uint8Array[] = [];
+      const reader = downloadStream.getReader();
+      while (true) {
+        const {done, value} = await reader.read();
+        if (done) {
+          break;
+        }
+        chunks.push(value);
+      }
+      const blob = new Blob(chunks);
+      // Generate Blob URL and download
+      const blobUrl = URL.createObjectURL(blob);
+      const aTag = document.createElement('a');
+      aTag.href = blobUrl;
+      aTag.download = filename;
+      document.body.appendChild(aTag);
+      aTag.click();
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+    }
+
+    // Disable indeterminate because finished
+    this.progressSetting.indeterminate = false;
+    // Set percentage as 100%
+    this.progressSetting.percentage    = 100;
+    // Enable the button again
+    this.enableActionButton = true;
   }
 }
 
