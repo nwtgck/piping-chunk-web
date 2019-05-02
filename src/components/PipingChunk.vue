@@ -76,7 +76,7 @@
 
 <script lang="ts">
 import { Component, Prop, Vue } from 'vue-property-decorator';
-import { createWriteStream } from 'streamsaver';
+import * as streamSaver from 'streamsaver';
 import * as pipingChunk from '@/piping-chunk';
 import * as utils from '@/utils';
 import * as aes128gcmStream from 'aes128gcm-stream';
@@ -84,6 +84,19 @@ import * as aes128gcmStream from 'aes128gcm-stream';
 import vueFilePond from 'vue-filepond';
 import 'filepond/dist/filepond.min.css';
 
+
+(async () => {
+  try {
+    const _ = TransformStream;
+  } catch (err) {
+    // Detect ReferenceError
+    // Use polyfill
+    const webStreamsPolyfill = await import('web-streams-polyfill');
+    ReadableStream  = webStreamsPolyfill.ReadableStream;
+    WritableStream  = webStreamsPolyfill.WritableStream;
+    TransformStream = webStreamsPolyfill.TransformStream;
+  }
+})();
 
 // Create component
 const FilePond = vueFilePond();
@@ -228,9 +241,41 @@ export default class PipingChunk extends Vue {
 
     // Use data ID as file name
     const filename = this.dataId;
-    // Save as file streamingly
-    const downloadPromise: Promise<void> = downloadStream.pipeTo(createWriteStream(filename));
+    // Promise notifying download finish
+    const downloadPromise: Promise<void> = (async () => {
+      // If stream-download is supported
+      if (streamSaver.supported) {
+        // Save as file streamingly
+        return downloadStream.pipeTo(
+          streamSaver.createWriteStream(filename),
+        );
+      } else {
+        // Read up chunks and generate blob
+        const chunks: Uint8Array[] = [];
+        const reader = downloadStream.getReader();
+        while (true) {
+          const {done, value} = await reader.read();
+          if (done) {
+            break;
+          }
+          chunks.push(value);
+        }
+        const blob = new Blob(chunks);
+        // Generate Blob URL and download
+        const blobUrl = URL.createObjectURL(blob);
+        const aTag = document.createElement('a');
+        aTag.href = blobUrl;
+        aTag.download = filename;
+        document.body.appendChild(aTag);
+        aTag.click();
+        URL.revokeObjectURL(blobUrl);
+      }
+    })();
 
+    // Wait download not to block popup-download
+    await downloadPromise;
+
+    // Do after download
     downloadPromise.finally(() => {
       // Disable indeterminate because finished
       this.progressSetting.indeterminate = false;
