@@ -52,6 +52,12 @@
           Send
           <v-icon right dark>file_upload</v-icon>
         </v-btn>
+        <v-alert :value="sendOrGet === 'get' && !streamDownloadSupported"
+                 type="warning"
+        >
+          This browser does NOT support stream-download.<br>
+          Whole file data will be temporary on the memory.
+        </v-alert>
         <v-btn v-if="sendOrGet === 'get'"
                color="secondary"
                v-on:click="get()"
@@ -76,7 +82,7 @@
 
 <script lang="ts">
 import { Component, Prop, Vue } from 'vue-property-decorator';
-import * as streamSaver from 'streamsaver';
+import * as streamSaver from 'streamsaver'; // NOTE: load before streams polyfill to detect support
 import * as pipingChunk from '@/piping-chunk';
 import * as utils from '@/utils';
 import * as aes128gcmStream from 'aes128gcm-stream';
@@ -127,6 +133,8 @@ export default class PipingChunk extends Vue {
   private showsSnackbar: boolean = false;
   // Message of snackbar
   private snackbarMessage: string = '';
+  // Whether stream-download is supported
+  private readonly streamDownloadSupported = streamSaver.supported;
 
   // Show error message
   private showSnackbar(message: string): void {
