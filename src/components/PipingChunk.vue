@@ -275,7 +275,7 @@ export default class PipingChunk extends Vue {
       aTag.download = filename;
       document.body.appendChild(aTag);
       aTag.click();
-      URL.revokeObjectURL(blobUrl);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
     }
 
     // Disable indeterminate because finished
