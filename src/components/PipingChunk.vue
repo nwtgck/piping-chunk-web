@@ -83,6 +83,7 @@
 <script lang="ts">
 import { Component, Prop, Vue } from 'vue-property-decorator';
 import * as streamSaver from 'streamsaver'; // NOTE: load before streams polyfill to detect support
+import * as fileSaver from 'file-saver';
 import * as pipingChunk from '@/piping-chunk';
 import * as utils from '@/utils';
 import * as aes128gcmStream from 'aes128gcm-stream';
@@ -267,15 +268,10 @@ export default class PipingChunk extends Vue {
         }
         chunks.push(value);
       }
+      // Create a blob from chunks
       const blob = new Blob(chunks);
-      // Generate Blob URL and download
-      const blobUrl = URL.createObjectURL(blob);
-      const aTag = document.createElement('a');
-      aTag.href = blobUrl;
-      aTag.download = filename;
-      document.body.appendChild(aTag);
-      aTag.click();
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 2000);
+      // Save
+      fileSaver.saveAs(blob, filename);
     }
 
     // Disable indeterminate because finished
