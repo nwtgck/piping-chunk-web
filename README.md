@@ -3,5 +3,7 @@
 
 Chunked Data Transfer via [Piping Server](https://github.com/nwtgck/piping-server) for Web Browser
 
+![Piping Chunk Demo](doc_assets/piping-chunk-demo.gif)
+
 ## Application
 <https://piping-chunk.netlify.com>
