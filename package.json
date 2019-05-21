@@ -23,7 +23,7 @@
     "web-streams-polyfill": "^2.0.3"
   },
   "devDependencies": {
-    "@types/file-saver": "^2.0.0",
+    "@types/file-saver": "^2.0.1",
     "@vue/cli-plugin-babel": "^3.7.0",
     "@vue/cli-plugin-pwa": "^3.7.0",
     "@vue/cli-plugin-typescript": "^3.7.0",
