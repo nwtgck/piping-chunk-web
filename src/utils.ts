@@ -46,10 +46,25 @@ export function getPregressReadableStream(
   return readableStream.pipeThrough(transformStream);
 }
 
-export async function passphraseToKey(passphrase: string): Promise<Uint8Array> {
-  // Convert passphrase string to Uint8Array
-  const passphraseU8Array: Uint8Array = new TextEncoder().encode(passphrase);
-  // Generate key from passphrase by SHA-2156
-  const key = new Uint8Array(await crypto.subtle.digest('SHA-256', passphraseU8Array));
-  return key;
+export async function getBodyBytesFromResponse(res: Response): Promise<Uint8Array> {
+  if (res.body === null) {
+    return new Uint8Array();
+  }
+  const reader = res.body.getReader();
+  const arrays = [];
+  let totalLen = 0;
+  while (true) {
+    const {done, value} = await reader.read();
+    if (done) { break; }
+    totalLen += value.byteLength;
+    arrays.push(value);
+  }
+  // (from: https://qiita.com/hbjpn/items/dc4fbb925987d284f491)
+  const allArray = new Uint8Array(totalLen);
+  let pos = 0;
+  for (const arr of arrays) {
+    allArray.set(arr, pos);
+    pos += arr.byteLength;
+  }
+  return allArray;
 }
