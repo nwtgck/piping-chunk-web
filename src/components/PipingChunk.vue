@@ -27,13 +27,6 @@
                       v-model="dataId"
                       placeholder="e.g. mydata"
         />
-        <v-text-field label="Passphrase (optional)"
-                      v-model="passphrase"
-                      placeholder="Input passphrase"
-                      :type="showPassphrase ? 'text' : 'password'"
-                      :append-icon="showPassphrase ? 'visibility' : 'visibility_off'"
-                      @click:append="showPassphrase = !showPassphrase"
-        />
         <v-text-field label="Simultaneous requests"
                       v-model="nSimultaneousReqs"
                       type="number"
@@ -44,13 +37,14 @@
                       v-model="chunkByteSize"
                       type="number"
         />
+
         <v-btn v-if="sendOrGet === 'send'"
                color="primary"
-               v-on:click="send()"
+               v-on:click="connect()"
                block
                :disabled="!enableActionButton">
-          Send
-          <v-icon right dark>file_upload</v-icon>
+          Connect
+          <v-icon right dark>power</v-icon>
         </v-btn>
         <v-alert :value="sendOrGet === 'get' && !streamDownloadSupported"
                  type="warning"
@@ -66,6 +60,34 @@
           Get
           <v-icon right dark>file_download</v-icon>
         </v-btn>
+        <span v-if="verificationCode !== ''">
+          <v-alert type="info" value="true"
+          >
+          <span style="font-size: 1.2em">Verification Code: <b>{{ verificationCode }}</b></span>
+        </v-alert>
+
+        <v-layout v-if="sendOrGet === 'send'">
+          <v-flex xs6>
+            <v-btn color="success"
+                   @click="verifyAndSend()"
+                   :disabled="disableVerifyOrAbortButtons"
+                   block>
+              <v-icon right dark>check</v-icon>
+              Verify & Send
+            </v-btn>
+          </v-flex>
+          <v-flex xs6>
+            <v-btn color="error"
+                   @click="abortSending()"
+                   :disabled="disableVerifyOrAbortButtons"
+                   block>
+              <v-icon right dark>cancel</v-icon>
+              Abort
+            </v-btn>
+          </v-flex>
+        </v-layout>
+        </span>
+
         <v-progress-linear
           v-show="progressSetting.show"
           :indeterminate="progressSetting.indeterminate"
@@ -87,10 +109,57 @@ import * as fileSaver from 'file-saver';
 import * as pipingChunk from '@/piping-chunk';
 import * as utils from '@/utils';
 import * as aes128gcmStream from 'aes128gcm-stream';
+import {nul, bool, num, str, literal, opt, arr, tuple, obj, union, TsType, validatingParse} from 'ts-json-validator';
+import {jwkThumbprintByEncoding} from 'jwk-thumbprint';
 
 import vueFilePond from 'vue-filepond';
 import 'filepond/dist/filepond.min.css';
 
+const rsaOtherPrimesInfoFormat = obj({
+  d: opt(str),
+  r: opt(str),
+  t: opt(str),
+});
+
+const jsonWebKeyFormat = obj({
+  alg: opt(str),
+  crv: opt(str),
+  d: opt(str),
+  dp: opt(str),
+  dq: opt(str),
+  e: opt(str),
+  ext: opt(bool),
+  k: opt(str),
+  key_ops: opt(arr(str)),
+  kty: opt(str),
+  n: opt(str),
+  oth: opt(arr(rsaOtherPrimesInfoFormat)),
+  p: opt(str),
+  q: opt(str),
+  qi: opt(str),
+  use: opt(str),
+  x: opt(str),
+  y: opt(str),
+});
+
+const keyExchangeParcelFormat = obj({
+  kind: literal('key_exchange' as const),
+  content: obj({
+    // Public key for verification code generation
+    verificationCodePublicJwk: jsonWebKeyFormat,
+    // Public key for encryption
+    encryptPublicJwk: jsonWebKeyFormat,
+  }),
+});
+type KeyExchangeParcel = TsType<typeof keyExchangeParcelFormat>;
+
+const verificationParcelFormat = obj({
+  kind: literal('verification' as const),
+  content: obj({
+    verified: bool,
+  }),
+});
+type VerificationParcel = TsType<typeof verificationParcelFormat>;
 
 (async () => {
   try {
@@ -108,6 +177,110 @@ import 'filepond/dist/filepond.min.css';
 // Create component
 const FilePond = vueFilePond();
 
+// Generate verification code
+async function generateVerificationCode(
+  verificationCodePublicJwk: JsonWebKey,
+  verificationPrivateKey: CryptoKey,
+): Promise<string> {
+  // Convert JWK To CryptoKey
+  const verificationCodePublicKey: CryptoKey = await crypto.subtle.importKey(
+    'jwk',
+    verificationCodePublicJwk,
+    {name: 'ECDH', namedCurve: 'P-256'},
+    true,
+    [],
+  );
+  // Create secret key for verification code generation
+  const verificationCodeKey: CryptoKey = await crypto.subtle.deriveKey(
+    { name: 'ECDH', public: verificationCodePublicKey },
+    verificationPrivateKey,
+    {name: 'AES-GCM', length: 128},
+    true,
+    ['encrypt', 'decrypt'],
+  );
+  // Convert the secret key to JWK
+  // NOTE: 'kty' should be 'oct'  logically
+  const verificationCodeJwk: JsonWebKey & {kty: 'oct'} = await window.crypto.subtle.exportKey(
+    'jwk',
+    verificationCodeKey,
+  ) as (JsonWebKey & {kty: 'oct'});
+  // Get JWK thumbprint by hex
+  return jwkThumbprintByEncoding(verificationCodeJwk, 'SHA-256', 'hex')
+    // Get top 32
+    .substring(0, 32);
+}
+
+/**
+ * Key exchange
+ * @param myPath
+ * @param peerPath
+ */
+async function keyExchange(
+  myPath: string,
+  peerPath: string,
+): Promise<{sharedKey: CryptoKey, verificationCode: string} | undefined> {
+  // Key pair to create verification code
+  const verificationCodeKeyPair: CryptoKeyPair = await window.crypto.subtle.generateKey(
+    { name: 'ECDH', namedCurve: 'P-256'},
+    true,
+    ['deriveKey', 'deriveBits'],
+  );
+  // Key pair for encryption
+  const encryptKeyPair: CryptoKeyPair = await window.crypto.subtle.generateKey(
+    { name: 'ECDH', namedCurve: 'P-256'},
+    true,
+    ['deriveKey', 'deriveBits'],
+  );
+  const keyExchangeParcel: KeyExchangeParcel = {
+    kind: 'key_exchange',
+    content: {
+      verificationCodePublicJwk: await crypto.subtle.exportKey(
+        'jwk',
+        verificationCodeKeyPair.publicKey,
+      ),
+      // Public key for encryption
+      encryptPublicJwk: await crypto.subtle.exportKey(
+        'jwk',
+        encryptKeyPair.publicKey,
+      ),
+    },
+  };
+  // Exchange keys
+  fetch(myPath, {
+    method: 'POST',
+    body: JSON.stringify(keyExchangeParcel),
+  });
+  const res = await fetch(peerPath);
+  const peerKeyExchangeParcel = validatingParse(keyExchangeParcelFormat, await res.text());
+  if (peerKeyExchangeParcel === undefined) {
+    console.error('Format of peer\'s key exchange was wrong');
+    return undefined;
+  }
+  const peerPublicKey: CryptoKey = await crypto.subtle.importKey(
+    'jwk',
+    peerKeyExchangeParcel.content.encryptPublicJwk,
+    {name: 'ECDH', namedCurve: 'P-256'},
+    true,
+    [],
+  );
+  // Get shared key
+  const sharedKey: CryptoKey = await crypto.subtle.deriveKey(
+    { name: 'ECDH', public: peerPublicKey },
+    encryptKeyPair.privateKey,
+    {name: 'AES-GCM', length: 128},
+    true,
+    ['encrypt', 'decrypt'],
+  );
+  return {
+    sharedKey,
+    // Generate verification code
+    verificationCode: await generateVerificationCode(
+      peerKeyExchangeParcel.content.verificationCodePublicJwk,
+      verificationCodeKeyPair.privateKey,
+    ),
+  };
+}
+
 @Component({
   components: {
     FilePond,
@@ -116,8 +289,6 @@ const FilePond = vueFilePond();
 export default class PipingChunk extends Vue {
   private sendOrGet: 'send' | 'get' = 'send';
   private dataId: string = '';
-  private passphrase: string = '';
-  private showPassphrase: boolean = false;
   // TODO: Hard code
   private serverUrl: string = 'https://ppng.ml';
   private nSimultaneousReqs: number = 2;
@@ -128,6 +299,9 @@ export default class PipingChunk extends Vue {
     indeterminate: false,
     percentage: 0,
   };
+  private aesGcmIvLength: number = 12;
+  private verificationCode: string = '';
+  private sharedKey?: CryptoKey;
   // Whether send/get button is available
   private enableActionButton: boolean = true;
   // Show snackbar
@@ -136,6 +310,7 @@ export default class PipingChunk extends Vue {
   private snackbarMessage: string = '';
   // Whether stream-download is supported
   private readonly streamDownloadSupported = streamSaver.supported;
+  private disableVerifyOrAbortButtons: boolean = true;
 
   // Show error message
   private showSnackbar(message: string): void {
@@ -143,7 +318,34 @@ export default class PipingChunk extends Vue {
     this.snackbarMessage = message;
   }
 
-  private async send() {
+  private async key(): Promise<Uint8Array | undefined> {
+    return this.sharedKey === undefined ?
+      undefined :
+      new Uint8Array(await crypto.subtle.exportKey('raw', this.sharedKey));
+  }
+
+  /**
+   * Encrypt parcel attached IV on head
+   * @param verificationParcel
+   * @param sharedKey
+   */
+  private async encryptParcel(verificationParcel: VerificationParcel): Promise<Blob> {
+    // Create an initialization vector
+    const iv = crypto.getRandomValues(new Uint8Array(this.aesGcmIvLength));
+    // Get shared key
+    const sharedKey = this.sharedKey!;
+    // Encrypt parcel
+    const encryptedParcel = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv, tagLength: 128 },
+      sharedKey,
+      // (from: https://stackoverflow.com/a/41180394/2885946)
+      new TextEncoder().encode(JSON.stringify(verificationParcel)),
+    );
+    // Join IV and encrypted parcel
+    return new Blob([iv, encryptedParcel]);
+  }
+
+  private async connect() {
     // Get file in FilePond
     const pondFile: {file: File} | null = (this.$refs.pond as any).getFile();
     if (pondFile === null) {
@@ -159,6 +361,73 @@ export default class PipingChunk extends Vue {
     }
     // Disable the button
     this.enableActionButton = false;
+
+    // Exchange key and Get key
+    const keyExchangeRes = await keyExchange(
+      // TODO: SHA path
+      `${this.serverUrl}/${this.dataId}/key_exchange/sender`,
+      // TODO: SHA path
+      `${this.serverUrl}/${this.dataId}/key_exchange/receiver`,
+    );
+    if (keyExchangeRes === undefined) {
+      console.error('Error in key exchange');
+      return;
+    }
+    // Extract
+    const {sharedKey, verificationCode} = keyExchangeRes;
+    // Assign shared key
+    this.sharedKey = sharedKey;
+    // Assign verification code
+    this.verificationCode = verificationCode;
+    // Enable [verify] and [abort] buttons
+    this.disableVerifyOrAbortButtons = false;
+  }
+
+  private async sendVerification(verified: boolean) {
+    const verificationParcel: VerificationParcel = {
+      kind: 'verification',
+      content: {
+        verified,
+      },
+    };
+    // Encrypt
+    const encrypted: Blob = await this.encryptParcel(verificationParcel);
+    // TODO: SHA path
+    await fetch(`${this.serverUrl}/${this.dataId}/verification`, {
+      method: 'POST',
+      body: encrypted,
+    });
+  }
+
+  private async verifyAndSend() {
+    // Disable [verify] and [abort] buttons
+    this.disableVerifyOrAbortButtons = true;
+    // Verify: true
+    await this.sendVerification(true);
+    // Send
+    await this.send();
+  }
+
+  private async abortSending() {
+    // Disable [verify] and [abort] buttons
+    this.disableVerifyOrAbortButtons = true;
+    // Verify: false
+    await this.sendVerification(false);
+    // Enable the button again
+    this.enableActionButton = true;
+    // Delete verification code and hide
+    this.verificationCode = '';
+  }
+
+  private async send() {
+    // Get file in FilePond
+    const pondFile: {file: File} | null = (this.$refs.pond as any).getFile();
+    if (pondFile === null) {
+      // Show error message
+      this.showSnackbar('Error: No file selected');
+      return;
+    }
+
     // Get the file
     const file: File = pondFile.file;
 
@@ -181,20 +450,11 @@ export default class PipingChunk extends Vue {
       });
 
     // Create upload stream
-    const uploadStream: ReadableStream<Uint8Array> = await (async () => {
-      // If passphrase is empty
-      if (this.passphrase === '') {
-        return progressStream;
-      } else {
-        // Generate key from passphrase by SHA-2156
-        const key = await utils.passphraseToKey(this.passphrase);
-        // Encrypt
-        return aes128gcmStream.encryptStream(
-          progressStream,
-          key,
-        );
-      }
-    })();
+    const uploadStream: ReadableStream<Uint8Array> = aes128gcmStream.encryptStream(
+      progressStream,
+      // NOTE: This should not be undefined
+      (await this.key())!,
+    );
 
     // Send
     const sendPromise: Promise<void> = pipingChunk.sendReadableStream(
@@ -207,6 +467,8 @@ export default class PipingChunk extends Vue {
     sendPromise.finally(() => {
       // Enable the button again
       this.enableActionButton = true;
+      // Delete verification code and hide
+      this.verificationCode = '';
     });
   }
 
@@ -220,6 +482,56 @@ export default class PipingChunk extends Vue {
     // Disable the button
     this.enableActionButton = false;
 
+    // Exchange key and Get key
+    const keyExchangeRes = await keyExchange(
+      // TODO: SHA path
+      `${this.serverUrl}/${this.dataId}/key_exchange/receiver`,
+      // TODO: SHA path
+      `${this.serverUrl}/${this.dataId}/key_exchange/sender`,
+    );
+    if (keyExchangeRes === undefined) {
+      console.error('Error in key exchange');
+      return;
+    }
+    // Extract
+    const {sharedKey, verificationCode} = keyExchangeRes;
+    this.sharedKey = sharedKey;
+    // Assign verification code
+    this.verificationCode = verificationCode;
+
+    // TODO: SHA path
+    const res = await fetch(`${this.serverUrl}/${this.dataId}/verification`);
+    // Get body
+    const body: Uint8Array = await utils.getBodyBytesFromResponse(res);
+    // Split body into IV and encrypted parcel
+    const iv = body.slice(0, this.aesGcmIvLength);
+    const encryptedParcel = body.slice(this.aesGcmIvLength);
+    // Decrypt body text
+    const decryptedParcel: ArrayBuffer = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv, tagLength: 128 },
+      this.sharedKey,
+      encryptedParcel,
+    );
+    // Parse
+    const verificationParcel: VerificationParcel | undefined = validatingParse(
+      verificationParcelFormat,
+      // (from: https://stackoverflow.com/a/41180394/2885946)
+      new TextDecoder().decode(decryptedParcel),
+    );
+    if (verificationParcel === undefined) {
+      console.error('Format error of verificationParcel');
+      return;
+    }
+    if (!verificationParcel.content.verified) {
+      // Show error message
+      this.showSnackbar('Sender aborts');
+      // Enable the button again
+      this.enableActionButton = true;
+      // Delete verification code and hide
+      this.verificationCode = '';
+      return;
+    }
+
     // Show progress bar
     this.progressSetting.show = true;
     // Enable indeterminate because it does NOT has percentage
@@ -232,21 +544,12 @@ export default class PipingChunk extends Vue {
       this.dataId,
     );
 
-
     // Create download stream
-    const downloadStream: ReadableStream<Uint8Array> = await (async () => {
-      // If passphrase is empty
-      if (this.passphrase === '') {
-        return readableStream;
-      } else {
-        // Generate key from passphrase by SHA-2156
-        const key = await utils.passphraseToKey(this.passphrase);
-        return aes128gcmStream.decryptStream(
-          readableStream,
-          key,
-        );
-      }
-    })();
+    const downloadStream: ReadableStream<Uint8Array> = aes128gcmStream.decryptStream(
+      readableStream,
+      // NOTE: This should not be undefined
+      (await this.key())!,
+    );
 
     // Use data ID as file name
     const filename = this.dataId;
@@ -280,6 +583,8 @@ export default class PipingChunk extends Vue {
     this.progressSetting.percentage    = 100;
     // Enable the button again
     this.enableActionButton = true;
+    // Delete verification code and hide
+    this.verificationCode = '';
   }
 }
 
