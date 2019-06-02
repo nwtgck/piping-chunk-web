@@ -27,13 +27,6 @@
                       v-model="dataId"
                       placeholder="e.g. mydata"
         />
-<!--        <v-text-field label="Passphrase (optional)"-->
-<!--                      v-model="passphrase"-->
-<!--                      placeholder="Input passphrase"-->
-<!--                      :type="showPassphrase ? 'text' : 'password'"-->
-<!--                      :append-icon="showPassphrase ? 'visibility' : 'visibility_off'"-->
-<!--                      @click:append="showPassphrase = !showPassphrase"-->
-<!--        />-->
         <v-text-field label="Simultaneous requests"
                       v-model="nSimultaneousReqs"
                       type="number"
@@ -295,8 +288,6 @@ async function keyExchange(
 export default class PipingChunk extends Vue {
   private sendOrGet: 'send' | 'get' = 'send';
   private dataId: string = '';
-  private passphrase: string = '';
-  private showPassphrase: boolean = false;
   // TODO: Hard code
   private serverUrl: string = 'https://ppng.ml';
   private nSimultaneousReqs: number = 2;
@@ -425,21 +416,11 @@ export default class PipingChunk extends Vue {
       });
 
     // Create upload stream
-    const uploadStream: ReadableStream<Uint8Array> = await (async () => {
-      // If passphrase is empty
-      if (this.passphrase === '') {
-        return progressStream;
-      } else {
-        // // Generate key from passphrase by SHA-2156
-        // const key = await utils.passphraseToKey(this.passphrase);
-        // Encrypt
-        return aes128gcmStream.encryptStream(
-          progressStream,
-          // NOTE: This should not be undefined
-          this.key!,
-        );
-      }
-    })();
+    const uploadStream: ReadableStream<Uint8Array> = aes128gcmStream.encryptStream(
+      progressStream,
+      // NOTE: This should not be undefined
+      this.key!,
+    );
 
     // Send
     const sendPromise: Promise<void> = pipingChunk.sendReadableStream(
@@ -511,21 +492,11 @@ export default class PipingChunk extends Vue {
       this.dataId,
     );
 
-
     // Create download stream
-    const downloadStream: ReadableStream<Uint8Array> = await (async () => {
-      // If passphrase is empty
-      if (this.passphrase === '') {
-        return readableStream;
-      } else {
-        // // Generate key from passphrase by SHA-2156
-        // const key = await utils.passphraseToKey(this.passphrase);
-        return aes128gcmStream.decryptStream(
-          readableStream,
-          key,
-        );
-      }
-    })();
+    const downloadStream: ReadableStream<Uint8Array> = aes128gcmStream.decryptStream(
+      readableStream,
+      key,
+    );
 
     // Use data ID as file name
     const filename = this.dataId;
