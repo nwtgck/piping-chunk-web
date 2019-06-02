@@ -67,9 +67,10 @@
           Get
           <v-icon right dark>file_download</v-icon>
         </v-btn>
-        <v-alert type="info" value="true"
-        >
-          <span style="font-size: 1.2em">Verification Code: 934f234d54d3439da0</span>
+        <span v-if="verificationCode !== ''">
+          <v-alert type="info" value="true"
+          >
+          <span style="font-size: 1.2em">Verification Code: {{ verificationCode }}</span>
         </v-alert>
 
         <v-layout v-if="sendOrGet === 'send'">
@@ -88,6 +89,7 @@
             </v-btn>
           </v-flex>
         </v-layout>
+        </span>
 
         <v-progress-linear
           v-show="progressSetting.show"
@@ -111,6 +113,7 @@ import * as pipingChunk from '@/piping-chunk';
 import * as utils from '@/utils';
 import * as aes128gcmStream from 'aes128gcm-stream';
 import {nul, bool, num, str, literal, opt, arr, tuple, obj, union, TsType, validatingParse} from 'ts-json-validator';
+import {jwkThumbprintByEncoding} from 'jwk-thumbprint';
 
 import vueFilePond from 'vue-filepond';
 import 'filepond/dist/filepond.min.css';
@@ -177,13 +180,48 @@ type VerificationParcel = TsType<typeof VerificationParcelFormat>;
 // Create component
 const FilePond = vueFilePond();
 
+// Generate verification code
+async function generateVerificationCode(
+  verificationCodePublicJwk: JsonWebKey,
+  verificationPrivateKey: CryptoKey,
+): Promise<string> {
+  // Convert JWK To CryptoKey
+  const verificationCodePublicKey: CryptoKey = await crypto.subtle.importKey(
+    'jwk',
+    verificationCodePublicJwk,
+    {name: 'ECDH', namedCurve: 'P-256'},
+    true,
+    [],
+  );
+  // Create secret key for verification code generation
+  const verificationCodeKey: CryptoKey = await crypto.subtle.deriveKey(
+    { name: 'ECDH', public: verificationCodePublicKey },
+    verificationPrivateKey,
+    {name: 'AES-GCM', length: 128},
+    true,
+    ['encrypt', 'decrypt'],
+  );
+  // Convert the secret key to JWK
+  // NOTE: 'kty' should be 'oct'  logically
+  const verificationCodeJwk: JsonWebKey & {kty: 'oct'} = await window.crypto.subtle.exportKey(
+    'jwk',
+    verificationCodeKey,
+  ) as (JsonWebKey & {kty: 'oct'});
+  // Get JWK thumbprint by hex
+  return jwkThumbprintByEncoding(verificationCodeJwk, 'SHA-256', 'hex')
+    // Get top 32
+    .substring(0, 32);
+}
+
 /**
  * Key exchange
  * @param myPath
  * @param peerPath
- * @return password
  */
-async function keyExchange(myPath: string, peerPath: string): Promise<Uint8Array | undefined> {
+async function keyExchange(
+  myPath: string,
+  peerPath: string,
+): Promise<{key: Uint8Array, verificationCode: string} | undefined> {
   // Key pair to create verification code
   const verificationCodeKeyPair: CryptoKeyPair = await window.crypto.subtle.generateKey(
     { name: 'ECDH', namedCurve: 'P-256'},
@@ -216,28 +254,35 @@ async function keyExchange(myPath: string, peerPath: string): Promise<Uint8Array
     body: JSON.stringify(keyExchangeParcel),
   });
   const res = await fetch(peerPath);
-  const receiverKeyExchangeParcel = validatingParse(keyExchangeParcelFormat, await res.text());
-  if (receiverKeyExchangeParcel === undefined) {
+  const peerKeyExchangeParcel = validatingParse(keyExchangeParcelFormat, await res.text());
+  if (peerKeyExchangeParcel === undefined) {
     console.error('Format of peer\'s key exchange was wrong');
     return undefined;
   }
-  const receiverPublicKey: CryptoKey = await crypto.subtle.importKey(
+  const peerPublicKey: CryptoKey = await crypto.subtle.importKey(
     'jwk',
-    receiverKeyExchangeParcel.content.encryptPublicJwk,
+    peerKeyExchangeParcel.content.encryptPublicJwk,
     {name: 'ECDH', namedCurve: 'P-256'},
     true,
     [],
   );
   // Get shared key
   const sharedKey: CryptoKey = await crypto.subtle.deriveKey(
-    { name: 'ECDH', public: receiverPublicKey },
+    { name: 'ECDH', public: peerPublicKey },
     encryptKeyPair.privateKey,
     {name: 'AES-GCM', length: 128},
     true,
     ['encrypt', 'decrypt'],
   );
-  // Convert shared key into Uint8Array
-  return new Uint8Array(await crypto.subtle.exportKey('raw', sharedKey));
+  return {
+    // Convert shared key into Uint8Array
+    key: new Uint8Array(await crypto.subtle.exportKey('raw', sharedKey)),
+    // Generate verification code
+    verificationCode: await generateVerificationCode(
+      peerKeyExchangeParcel.content.verificationCodePublicJwk,
+      verificationCodeKeyPair.privateKey,
+    ),
+  };
 }
 
 @Component({
@@ -260,6 +305,7 @@ export default class PipingChunk extends Vue {
     indeterminate: false,
     percentage: 0,
   };
+  private verificationCode: string = '';
   // Whether send/get button is available
   private enableActionButton: boolean = true;
   // Show snackbar
@@ -293,16 +339,20 @@ export default class PipingChunk extends Vue {
     this.enableActionButton = false;
 
     // Exchange key and Get key
-    const key: Uint8Array | undefined = await keyExchange(
+    const keyExchangeRes = await keyExchange(
       // TODO: SHA path
       `${this.serverUrl}/${this.dataId}/verification/sender`,
       // TODO: SHA path
       `${this.serverUrl}/${this.dataId}/verification/receiver`,
     );
-    if (key === undefined) {
+    if (keyExchangeRes === undefined) {
       console.error('Error in key exchange');
       return;
     }
+    // Extract
+    const {key, verificationCode} = keyExchangeRes;
+    // Assign verification code
+    this.verificationCode = verificationCode;
 
     // Get the file
     const file: File = pondFile.file;
@@ -366,16 +416,20 @@ export default class PipingChunk extends Vue {
     this.enableActionButton = false;
 
     // Exchange key and Get key
-    const key: Uint8Array | undefined = await keyExchange(
+    const keyExchangeRes = await keyExchange(
       // TODO: SHA path
       `${this.serverUrl}/${this.dataId}/verification/receiver`,
       // TODO: SHA path
       `${this.serverUrl}/${this.dataId}/verification/sender`,
     );
-    if (key === undefined) {
+    if (keyExchangeRes === undefined) {
       console.error('Error in key exchange');
       return;
     }
+    // Extract
+    const {key, verificationCode} = keyExchangeRes;
+    // Assign verification code
+    this.verificationCode = verificationCode;
 
     // Show progress bar
     this.progressSetting.show = true;
