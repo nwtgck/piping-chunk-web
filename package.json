@@ -14,7 +14,7 @@
     "filepond": "^4.4.8",
     "promise-limiter": "git+https://github.com/nwtgck/promise-limiter-npm.git#v0.1.0",
     "register-service-worker": "^1.6.2",
-    "streamsaver": "^1.2.0",
+    "streamsaver": "^2.0.2",
     "vue": "^2.6.10",
     "vue-class-component": "^7.1.0",
     "vue-filepond": "^5.1.1",
