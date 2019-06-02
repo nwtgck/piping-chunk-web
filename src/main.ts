@@ -6,6 +6,9 @@ import './registerServiceWorker';
 import Vuetify from 'vuetify';
 import 'vuetify/dist/vuetify.min.css';
 
+// (from: https://e-joint.jp/474/)
+import '@fortawesome/fontawesome';
+import '@fortawesome/fontawesome-free-brands';
 
 Vue.config.productionTip = false;
 

@@ -1,6 +1,12 @@
 <template>
   <v-app id="app">
     <h1>Piping Chunk</h1>
+    <p>
+      🛡 End-to-end encryption streaming file transfer via <a href="https://github.com/nwtgck/piping-server">Piping Server</a><br>
+      <a href="https://github.com/nwtgck/piping-chunk-web">
+        <v-icon>fab fa-github</v-icon> GitHub
+      </a>
+    </p>
     <PipingChunk />
   </v-app>
 </template>
