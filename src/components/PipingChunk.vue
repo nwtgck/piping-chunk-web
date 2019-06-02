@@ -63,13 +63,14 @@
         <span v-if="verificationCode !== ''">
           <v-alert type="info" value="true"
           >
-          <span style="font-size: 1.2em">Verification Code: {{ verificationCode }}</span>
+          <span style="font-size: 1.2em">Verification Code: <b>{{ verificationCode }}</b></span>
         </v-alert>
 
         <v-layout v-if="sendOrGet === 'send'">
           <v-flex xs6>
             <v-btn color="success"
                    @click="verifyAndSend()"
+                   :disabled="disableVerifyOrAbortButtons"
                    block>
               <v-icon right dark>check</v-icon>
               Verify & Send
@@ -78,6 +79,7 @@
           <v-flex xs6>
             <v-btn color="error"
                    @click="abortSending()"
+                   :disabled="disableVerifyOrAbortButtons"
                    block>
               <v-icon right dark>cancel</v-icon>
               Abort
@@ -308,6 +310,7 @@ export default class PipingChunk extends Vue {
   private snackbarMessage: string = '';
   // Whether stream-download is supported
   private readonly streamDownloadSupported = streamSaver.supported;
+  private disableVerifyOrAbortButtons: boolean = true;
 
   // Show error message
   private showSnackbar(message: string): void {
@@ -376,7 +379,8 @@ export default class PipingChunk extends Vue {
     this.sharedKey = sharedKey;
     // Assign verification code
     this.verificationCode = verificationCode;
-
+    // Enable [verify] and [abort] buttons
+    this.disableVerifyOrAbortButtons = false;
   }
 
   private async sendVerification(verified: boolean) {
@@ -396,6 +400,8 @@ export default class PipingChunk extends Vue {
   }
 
   private async verifyAndSend() {
+    // Disable [verify] and [abort] buttons
+    this.disableVerifyOrAbortButtons = true;
     // Verify: true
     await this.sendVerification(true);
     // Send
@@ -403,8 +409,14 @@ export default class PipingChunk extends Vue {
   }
 
   private async abortSending() {
+    // Disable [verify] and [abort] buttons
+    this.disableVerifyOrAbortButtons = true;
     // Verify: false
     await this.sendVerification(false);
+    // Enable the button again
+    this.enableActionButton = true;
+    // Delete verification code and hide
+    this.verificationCode = '';
   }
 
   private async send() {
@@ -455,6 +467,8 @@ export default class PipingChunk extends Vue {
     sendPromise.finally(() => {
       // Enable the button again
       this.enableActionButton = true;
+      // Delete verification code and hide
+      this.verificationCode = '';
     });
   }
 
@@ -511,6 +525,10 @@ export default class PipingChunk extends Vue {
     if (!verificationParcel.content.verified) {
       // Show error message
       this.showSnackbar('Sender aborts');
+      // Enable the button again
+      this.enableActionButton = true;
+      // Delete verification code and hide
+      this.verificationCode = '';
       return;
     }
 
@@ -565,6 +583,8 @@ export default class PipingChunk extends Vue {
     this.progressSetting.percentage    = 100;
     // Enable the button again
     this.enableActionButton = true;
+    // Delete verification code and hide
+    this.verificationCode = '';
   }
 }
 
