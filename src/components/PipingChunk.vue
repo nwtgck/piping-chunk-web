@@ -177,6 +177,69 @@ type VerificationParcel = TsType<typeof VerificationParcelFormat>;
 // Create component
 const FilePond = vueFilePond();
 
+/**
+ * Key exchange
+ * @param myPath
+ * @param peerPath
+ * @return password
+ */
+async function keyExchange(myPath: string, peerPath: string): Promise<Uint8Array | undefined> {
+  // Key pair to create verification code
+  const verificationCodeKeyPair: CryptoKeyPair = await window.crypto.subtle.generateKey(
+    { name: 'ECDH', namedCurve: 'P-256'},
+    true,
+    ['deriveKey', 'deriveBits'],
+  );
+  // Key pair for encryption
+  const encryptKeyPair: CryptoKeyPair = await window.crypto.subtle.generateKey(
+    { name: 'ECDH', namedCurve: 'P-256'},
+    true,
+    ['deriveKey', 'deriveBits'],
+  );
+  const keyExchangeParcel: KeyExchangeParcel = {
+    kind: 'key_exchange',
+    content: {
+      verificationCodePublicJwk: await crypto.subtle.exportKey(
+        'jwk',
+        verificationCodeKeyPair.publicKey,
+      ),
+      // Public key for encryption
+      encryptPublicJwk: await crypto.subtle.exportKey(
+        'jwk',
+        encryptKeyPair.publicKey,
+      ),
+    },
+  };
+  // Exchange keys
+  fetch(myPath, {
+    method: 'POST',
+    body: JSON.stringify(keyExchangeParcel),
+  });
+  const res = await fetch(peerPath);
+  const receiverKeyExchangeParcel = validatingParse(keyExchangeParcelFormat, await res.text());
+  if (receiverKeyExchangeParcel === undefined) {
+    console.error('Format of peer\'s key exchange was wrong');
+    return undefined;
+  }
+  const receiverPublicKey: CryptoKey = await crypto.subtle.importKey(
+    'jwk',
+    receiverKeyExchangeParcel.content.encryptPublicJwk,
+    {name: 'ECDH', namedCurve: 'P-256'},
+    true,
+    [],
+  );
+  // Get shared key
+  const sharedKey: CryptoKey = await crypto.subtle.deriveKey(
+    { name: 'ECDH', public: receiverPublicKey },
+    encryptKeyPair.privateKey,
+    {name: 'AES-GCM', length: 128},
+    true,
+    ['encrypt', 'decrypt'],
+  );
+  // Convert shared key into Uint8Array
+  return new Uint8Array(await crypto.subtle.exportKey('raw', sharedKey));
+}
+
 @Component({
   components: {
     FilePond,
@@ -229,63 +292,17 @@ export default class PipingChunk extends Vue {
     // Disable the button
     this.enableActionButton = false;
 
-    // Key pair to create verification code
-    const verificationCodeKeyPair: CryptoKeyPair = await window.crypto.subtle.generateKey(
-      { name: 'ECDH', namedCurve: 'P-256'},
-      true,
-      ['deriveKey', 'deriveBits'],
+    // Exchange key and Get key
+    const key: Uint8Array | undefined = await keyExchange(
+      // TODO: SHA path
+      `${this.serverUrl}/${this.dataId}/verification/sender`,
+      // TODO: SHA path
+      `${this.serverUrl}/${this.dataId}/verification/receiver`,
     );
-    // Key pair for encryption
-    const encryptKeyPair: CryptoKeyPair = await window.crypto.subtle.generateKey(
-      { name: 'ECDH', namedCurve: 'P-256'},
-      true,
-      ['deriveKey', 'deriveBits'],
-    );
-    const keyExchangeParcel: KeyExchangeParcel = {
-      kind: 'key_exchange',
-      content: {
-        verificationCodePublicJwk: await crypto.subtle.exportKey(
-          'jwk',
-          verificationCodeKeyPair.publicKey,
-        ),
-        // Public key for encryption
-        encryptPublicJwk: await crypto.subtle.exportKey(
-          'jwk',
-          encryptKeyPair.publicKey,
-        ),
-      },
-    };
-    console.log(keyExchangeParcel);
-    // Exchange keys
-    // TODO: SHA path
-    fetch(`${this.serverUrl}/${this.dataId}/verification/sender`, {
-      method: 'POST',
-      body: JSON.stringify(keyExchangeParcel),
-    });
-    // TODO: SHA path
-    const res = await fetch(`${this.serverUrl}/${this.dataId}/verification/receiver`);
-    const receiverKeyExchangeParcel = validatingParse(keyExchangeParcelFormat, await res.text());
-    if (receiverKeyExchangeParcel === undefined) {
-      console.error('Format of receiver\'s key exchange was wrong');
+    if (key === undefined) {
+      console.error('Error in key exchange');
       return;
     }
-    const receiverPublicKey: CryptoKey = await crypto.subtle.importKey(
-      'jwk',
-      receiverKeyExchangeParcel.content.encryptPublicJwk,
-      {name: 'ECDH', namedCurve: 'P-256'},
-      true,
-      [],
-    );
-    // Get shared key
-    const sharedKey: CryptoKey = await crypto.subtle.deriveKey(
-      { name: 'ECDH', public: receiverPublicKey },
-      encryptKeyPair.privateKey,
-      {name: 'AES-GCM', length: 128},
-      true,
-      ['encrypt', 'decrypt'],
-    );
-    // Convert shared key into Uint8Array
-    const key: Uint8Array = new Uint8Array(await crypto.subtle.exportKey('raw', sharedKey));
 
     // Get the file
     const file: File = pondFile.file;
@@ -348,63 +365,17 @@ export default class PipingChunk extends Vue {
     // Disable the button
     this.enableActionButton = false;
 
-    // Key pair to create verification code
-    const verificationCodeKeyPair: CryptoKeyPair = await window.crypto.subtle.generateKey(
-      { name: 'ECDH', namedCurve: 'P-256'},
-      true,
-      ['deriveKey', 'deriveBits'],
+    // Exchange key and Get key
+    const key: Uint8Array | undefined = await keyExchange(
+      // TODO: SHA path
+      `${this.serverUrl}/${this.dataId}/verification/receiver`,
+      // TODO: SHA path
+      `${this.serverUrl}/${this.dataId}/verification/sender`,
     );
-    // Key pair for encryption
-    const encryptKeyPair: CryptoKeyPair = await window.crypto.subtle.generateKey(
-      { name: 'ECDH', namedCurve: 'P-256'},
-      true,
-      ['deriveKey', 'deriveBits'],
-    );
-    const keyExchangeParcel: KeyExchangeParcel = {
-      kind: 'key_exchange',
-      content: {
-        verificationCodePublicJwk: await window.crypto.subtle.exportKey(
-          'jwk',
-          verificationCodeKeyPair.publicKey,
-        ),
-        // Public key for encryption
-        encryptPublicJwk: await window.crypto.subtle.exportKey(
-          'jwk',
-          encryptKeyPair.publicKey,
-        ),
-      },
-    };
-    console.log(keyExchangeParcel);
-    // Exchange keys
-    // TODO: SHA path
-    fetch(`${this.serverUrl}/${this.dataId}/verification/receiver`, {
-      method: 'POST',
-      body: JSON.stringify(keyExchangeParcel),
-    });
-    // TODO: SHA path
-    const res = await fetch(`${this.serverUrl}/${this.dataId}/verification/sender`);
-    const senderKeyExchangeParcel = validatingParse(keyExchangeParcelFormat, await res.text());
-    if (senderKeyExchangeParcel === undefined) {
-      console.error('Format of sender\'s key exchange was wrong');
+    if (key === undefined) {
+      console.error('Error in key exchange');
       return;
     }
-    const receiverPublicKey: CryptoKey = await crypto.subtle.importKey(
-      'jwk',
-      senderKeyExchangeParcel.content.encryptPublicJwk,
-      {name: 'ECDH', namedCurve: 'P-256'},
-      true,
-      [],
-    );
-    // Get shared key
-    const sharedKey: CryptoKey = await crypto.subtle.deriveKey(
-      { name: 'ECDH', public: receiverPublicKey },
-      encryptKeyPair.privateKey,
-      {name: 'AES-GCM', length: 128},
-      true,
-      ['encrypt', 'decrypt'],
-    );
-    // Convert shared key into Uint8Array
-    const key: Uint8Array = new Uint8Array(await crypto.subtle.exportKey('raw', sharedKey));
 
     // Show progress bar
     this.progressSetting.show = true;
