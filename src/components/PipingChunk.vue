@@ -47,7 +47,7 @@
 
         <v-btn v-if="sendOrGet === 'send'"
                color="primary"
-               v-on:click="send()"
+               v-on:click="connect()"
                block
                :disabled="!enableActionButton">
           Connect
@@ -76,6 +76,7 @@
         <v-layout v-if="sendOrGet === 'send'">
           <v-flex xs6>
             <v-btn color="success"
+                   @click="verifyAndSend()"
                    block>
               <v-icon right dark>check</v-icon>
               Verify & Send
@@ -83,6 +84,7 @@
           </v-flex>
           <v-flex xs6>
             <v-btn color="error"
+                   @click="abortSending()"
                    block>
               <v-icon right dark>cancel</v-icon>
               Abort
@@ -156,13 +158,13 @@ const keyExchangeParcelFormat = obj({
 });
 type KeyExchangeParcel = TsType<typeof keyExchangeParcelFormat>;
 
-const VerificationParcelFormat = obj({
+const verificationParcelFormat = obj({
   kind: literal('verification' as const),
   content: obj({
     verified: bool,
   }),
 });
-type VerificationParcel = TsType<typeof VerificationParcelFormat>;
+type VerificationParcel = TsType<typeof verificationParcelFormat>;
 
 (async () => {
   try {
@@ -306,6 +308,7 @@ export default class PipingChunk extends Vue {
     percentage: 0,
   };
   private verificationCode: string = '';
+  private key?: Uint8Array;
   // Whether send/get button is available
   private enableActionButton: boolean = true;
   // Show snackbar
@@ -321,7 +324,7 @@ export default class PipingChunk extends Vue {
     this.snackbarMessage = message;
   }
 
-  private async send() {
+  private async connect() {
     // Get file in FilePond
     const pondFile: {file: File} | null = (this.$refs.pond as any).getFile();
     if (pondFile === null) {
@@ -341,9 +344,9 @@ export default class PipingChunk extends Vue {
     // Exchange key and Get key
     const keyExchangeRes = await keyExchange(
       // TODO: SHA path
-      `${this.serverUrl}/${this.dataId}/verification/sender`,
+      `${this.serverUrl}/${this.dataId}/key_exchange/sender`,
       // TODO: SHA path
-      `${this.serverUrl}/${this.dataId}/verification/receiver`,
+      `${this.serverUrl}/${this.dataId}/key_exchange/receiver`,
     );
     if (keyExchangeRes === undefined) {
       console.error('Error in key exchange');
@@ -351,8 +354,54 @@ export default class PipingChunk extends Vue {
     }
     // Extract
     const {key, verificationCode} = keyExchangeRes;
+    // Assign key
+    this.key = key;
     // Assign verification code
     this.verificationCode = verificationCode;
+
+  }
+
+  private async verifyAndSend() {
+    const verificationParcel: VerificationParcel = {
+      kind: 'verification',
+      content: {
+        verified: true,
+      },
+    };
+    // TODO: SHA path
+    await fetch(`${this.serverUrl}/${this.dataId}/verification`, {
+      method: 'POST',
+      // TODO encrypt
+      body: JSON.stringify(verificationParcel),
+    });
+
+    // Send
+    await this.send();
+  }
+
+  private async abortSending() {
+    const verificationParcel: VerificationParcel = {
+      kind: 'verification',
+      content: {
+        verified: false,
+      },
+    };
+    // TODO: SHA path
+    await fetch(`${this.serverUrl}/${this.dataId}/verification`, {
+      method: 'POST',
+      // TODO encrypt
+      body: JSON.stringify(verificationParcel),
+    });
+  }
+
+  private async send() {
+    // Get file in FilePond
+    const pondFile: {file: File} | null = (this.$refs.pond as any).getFile();
+    if (pondFile === null) {
+      // Show error message
+      this.showSnackbar('Error: No file selected');
+      return;
+    }
 
     // Get the file
     const file: File = pondFile.file;
@@ -386,7 +435,8 @@ export default class PipingChunk extends Vue {
         // Encrypt
         return aes128gcmStream.encryptStream(
           progressStream,
-          key,
+          // NOTE: This should not be undefined
+          this.key!,
         );
       }
     })();
@@ -418,9 +468,9 @@ export default class PipingChunk extends Vue {
     // Exchange key and Get key
     const keyExchangeRes = await keyExchange(
       // TODO: SHA path
-      `${this.serverUrl}/${this.dataId}/verification/receiver`,
+      `${this.serverUrl}/${this.dataId}/key_exchange/receiver`,
       // TODO: SHA path
-      `${this.serverUrl}/${this.dataId}/verification/sender`,
+      `${this.serverUrl}/${this.dataId}/key_exchange/sender`,
     );
     if (keyExchangeRes === undefined) {
       console.error('Error in key exchange');
@@ -430,6 +480,24 @@ export default class PipingChunk extends Vue {
     const {key, verificationCode} = keyExchangeRes;
     // Assign verification code
     this.verificationCode = verificationCode;
+
+    // TODO: SHA path
+    const res = await fetch(`${this.serverUrl}/${this.dataId}/verification`);
+    // Parse
+    // TODO: Decrypt
+    const verificationParcel: VerificationParcel | undefined = validatingParse(
+      verificationParcelFormat,
+      await res.text(),
+    );
+    if (verificationParcel === undefined) {
+      console.error('Format error of verificationParcel');
+      return;
+    }
+    if (!verificationParcel.content.verified) {
+      // Show error message
+      this.showSnackbar('Sender aborts');
+      return;
+    }
 
     // Show progress bar
     this.progressSetting.show = true;
