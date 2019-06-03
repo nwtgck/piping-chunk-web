@@ -143,6 +143,27 @@ const jsonWebKeyFormat = obj({
   y: opt(str),
 });
 
+const ecJsonWebKeyFormat = obj({
+  alg: opt(str),
+  crv: opt(str),
+  d: opt(str),
+  dp: opt(str),
+  dq: opt(str),
+  e: opt(str),
+  ext: opt(bool),
+  k: opt(str),
+  key_ops: opt(arr(str)),
+  kty: literal('EC' as const),
+  n: opt(str),
+  oth: opt(arr(rsaOtherPrimesInfoFormat)),
+  p: opt(str),
+  q: opt(str),
+  qi: opt(str),
+  use: opt(str),
+  x: opt(str),
+  y: opt(str),
+});
+
 const rsaJsonWebKeyFormat = obj({
   alg: opt(str),
   crv: opt(str),
@@ -170,7 +191,7 @@ const keyExchangeParcelFormat = obj({
     // Public RSA key for signature
     rsaPublicJWk: rsaJsonWebKeyFormat,
     // Public key for encryption
-    encryptPublicJwk: jsonWebKeyFormat,
+    encryptPublicJwk: ecJsonWebKeyFormat,
     // Signature of thumbprint of public key for encryption
     encryptPublicJwkThumbprintSignature: str,
   }),
@@ -267,7 +288,7 @@ async function keyExchange(
       encryptPublicJwk: await crypto.subtle.exportKey(
         'jwk',
         encryptKeyPair.publicKey,
-      ),
+      ) as {kty: 'EC'}, // NOTE: kty is 'EC' logically
       encryptPublicJwkThumbprintSignature: encryptPublicJwkThumbprintSignature,
     },
   };
@@ -282,15 +303,30 @@ async function keyExchange(
     console.error('Format of peer\'s key exchange was wrong');
     return undefined;
   }
+  // Get peer's RSA public key
+  const peerRsaPublicJWk = peerKeyExchangeParcel.content.rsaPublicJWk;
+  // Get peer's public for encryption
+  const peerEncryptPublicJwk = peerKeyExchangeParcel.content.encryptPublicJwk;
+
+  // Verify peer's public key for encryption by peer's public RSA key
+  const verified = await crypto.subtle.verify(
+    signAlg,
+    await crypto.subtle.importKey('jwk', peerRsaPublicJWk, signAlg, true, ['verify']),
+    utils.stringToArrayBuffer(atob(peerKeyExchangeParcel.content.encryptPublicJwkThumbprintSignature)),
+    jwkThumbprintByEncoding(peerEncryptPublicJwk, 'SHA-256', 'uint8array'),
+  );
+  if (!verified) {
+    console.error('Peer public key for encryption is not verified');
+    return undefined;
+  }
+
   const peerPublicKey: CryptoKey = await crypto.subtle.importKey(
     'jwk',
-    peerKeyExchangeParcel.content.encryptPublicJwk,
+    peerEncryptPublicJwk,
     {name: 'ECDH', namedCurve: 'P-256'},
     true,
     [],
   );
-
-  // TODO: Verify peer's public key for encryption by peer's public RSA key
 
   // Get shared key
   const sharedKey: CryptoKey = await crypto.subtle.deriveKey(
@@ -305,7 +341,7 @@ async function keyExchange(
     // Generate verification code
     verificationCode: await generateVerificationCode(
       rsaPublicJWk,
-      peerKeyExchangeParcel.content.rsaPublicJWk,
+      peerRsaPublicJWk,
     ),
   };
 }
