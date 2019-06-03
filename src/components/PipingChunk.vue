@@ -206,6 +206,9 @@ const verificationParcelFormat = obj({
 });
 type VerificationParcel = TsType<typeof verificationParcelFormat>;
 
+// Signature algorithm
+const signAlg = { name: 'RSASSA-PKCS1-v1_5', hash: { name: 'SHA-256' } };
+
 (async () => {
   try {
     const _ = TransformStream;
@@ -241,27 +244,17 @@ async function generateVerificationCode(
 
 /**
  * Key exchange
+ * @param rsaKeyPair
+ * @param encryptKeyPair
  * @param myUrl
  * @param peerUrl
  */
 async function keyExchange(
+  rsaKeyPair: CryptoKeyPair,
+  encryptKeyPair: CryptoKeyPair,
   myUrl: string,
   peerUrl: string,
 ): Promise<{sharedKey: CryptoKey, verificationCode: string} | undefined> {
-  // Signature algorithm
-  const signAlg = { name: 'RSASSA-PKCS1-v1_5', hash: { name: 'SHA-256' } };
-  // RSA keys for signature
-  const rsaKeyPair: CryptoKeyPair = await window.crypto.subtle.generateKey(
-    {...signAlg, modulusLength: 4096,  publicExponent: new Uint8Array([0x01, 0x00, 0x01]) },
-    true,
-    ['sign', 'verify'],
-  );
-  // Key pair for encryption
-  const encryptKeyPair: CryptoKeyPair = await window.crypto.subtle.generateKey(
-    { name: 'ECDH', namedCurve: 'P-256'},
-    true,
-    ['deriveKey', 'deriveBits'],
-  );
   // NOTE: kty should be 'EC' because it's ECDH key
   const encryptPublicJwk: JsonWebKey & {kty: 'EC'} = await crypto.subtle.exportKey(
     'jwk',
@@ -377,6 +370,19 @@ export default class PipingChunk extends Vue {
   private readonly streamDownloadSupported = streamSaver.supported;
   private disableVerifyOrAbortButtons: boolean = true;
 
+  // RSA keys for signature
+  private rsaKeyPairPromise: PromiseLike<CryptoKeyPair> = crypto.subtle.generateKey(
+    {...signAlg, modulusLength: 4096,  publicExponent: new Uint8Array([0x01, 0x00, 0x01]) },
+    true,
+    ['sign', 'verify'],
+  );
+  // Key pair for encryption
+  private encryptKeyPairPromise: PromiseLike<CryptoKeyPair> = crypto.subtle.generateKey(
+    { name: 'ECDH', namedCurve: 'P-256'},
+    true,
+    ['deriveKey', 'deriveBits'],
+  );
+
   // Show error message
   private showSnackbar(message: string): void {
     this.showsSnackbar = true;
@@ -437,6 +443,8 @@ export default class PipingChunk extends Vue {
 
     // Exchange key and Get key
     const keyExchangeRes = await keyExchange(
+      await this.rsaKeyPairPromise,
+      await this.encryptKeyPairPromise,
       await this.keyExchangeUrl('sender'),
       await this.keyExchangeUrl('receiver'),
     );
@@ -554,6 +562,8 @@ export default class PipingChunk extends Vue {
 
     // Exchange key and Get key
     const keyExchangeRes = await keyExchange(
+      await this.rsaKeyPairPromise,
+      await this.encryptKeyPairPromise,
       await this.keyExchangeUrl('receiver'),
       await this.keyExchangeUrl('sender'),
     );
