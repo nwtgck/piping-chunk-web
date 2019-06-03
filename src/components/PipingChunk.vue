@@ -350,6 +350,10 @@ export default class PipingChunk extends Vue {
     return urlJoin(this.serverUrl, await utils.sha256(`${this.dataId}/key_exchange/${type}`));
   }
 
+  private async verificationUrl(): Promise<string> {
+    return urlJoin(this.serverUrl, await utils.sha256(`${this.dataId}/${this.verificationCode}/verification`));
+  }
+
   private async connect() {
     // Get file in FilePond
     const pondFile: {file: File} | null = (this.$refs.pond as any).getFile();
@@ -395,8 +399,7 @@ export default class PipingChunk extends Vue {
     };
     // Encrypt
     const encrypted: Blob = await this.encryptParcel(verificationParcel);
-    // TODO: SHA path
-    await fetch(`${this.serverUrl}/${this.dataId}/verification`, {
+    await fetch(await this.verificationUrl(), {
       method: 'POST',
       body: encrypted,
     });
@@ -500,8 +503,7 @@ export default class PipingChunk extends Vue {
     // Assign verification code
     this.verificationCode = verificationCode;
 
-    // TODO: SHA path
-    const res = await fetch(`${this.serverUrl}/${this.dataId}/verification`);
+    const res = await fetch(await this.verificationUrl());
     // Get body
     const body: Uint8Array = await utils.getBodyBytesFromResponse(res);
     // Split body into IV and encrypted parcel
