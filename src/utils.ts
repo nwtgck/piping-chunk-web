@@ -68,3 +68,14 @@ export async function getBodyBytesFromResponse(res: Response): Promise<Uint8Arra
   }
   return allArray;
 }
+
+// (from: https://stackoverflow.com/a/40031979/2885946)
+export function buffToHex(buff: ArrayBuffer): string {
+  return Array.prototype.map.call(new Uint8Array(buff), (x) => ('00' + x.toString(16)).slice(-2)).join('');
+}
+
+export async function sha256(input: string): Promise<string> {
+  return buffToHex(
+    await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input)),
+  );
+}

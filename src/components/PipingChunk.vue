@@ -111,6 +111,7 @@ import * as utils from '@/utils';
 import * as aes128gcmStream from 'aes128gcm-stream';
 import {nul, bool, num, str, literal, opt, arr, tuple, obj, union, TsType, validatingParse} from 'ts-json-validator';
 import {jwkThumbprintByEncoding} from 'jwk-thumbprint';
+import urlJoin from 'url-join';
 
 import vueFilePond from 'vue-filepond';
 import 'filepond/dist/filepond.min.css';
@@ -212,12 +213,12 @@ async function generateVerificationCode(
 
 /**
  * Key exchange
- * @param myPath
- * @param peerPath
+ * @param myUrl
+ * @param peerUrl
  */
 async function keyExchange(
-  myPath: string,
-  peerPath: string,
+  myUrl: string,
+  peerUrl: string,
 ): Promise<{sharedKey: CryptoKey, verificationCode: string} | undefined> {
   // Key pair to create verification code
   const verificationCodeKeyPair: CryptoKeyPair = await window.crypto.subtle.generateKey(
@@ -246,11 +247,11 @@ async function keyExchange(
     },
   };
   // Exchange keys
-  fetch(myPath, {
+  fetch(myUrl, {
     method: 'POST',
     body: JSON.stringify(keyExchangeParcel),
   });
-  const res = await fetch(peerPath);
+  const res = await fetch(peerUrl);
   const peerKeyExchangeParcel = validatingParse(keyExchangeParcelFormat, await res.text());
   if (peerKeyExchangeParcel === undefined) {
     console.error('Format of peer\'s key exchange was wrong');
@@ -345,6 +346,10 @@ export default class PipingChunk extends Vue {
     return new Blob([iv, encryptedParcel]);
   }
 
+  private async keyExchangeUrl(type: 'sender' | 'receiver'): Promise<string> {
+    return urlJoin(this.serverUrl, await utils.sha256(`${this.dataId}/key_exchange/${type}`));
+  }
+
   private async connect() {
     // Get file in FilePond
     const pondFile: {file: File} | null = (this.$refs.pond as any).getFile();
@@ -364,10 +369,8 @@ export default class PipingChunk extends Vue {
 
     // Exchange key and Get key
     const keyExchangeRes = await keyExchange(
-      // TODO: SHA path
-      `${this.serverUrl}/${this.dataId}/key_exchange/sender`,
-      // TODO: SHA path
-      `${this.serverUrl}/${this.dataId}/key_exchange/receiver`,
+      await this.keyExchangeUrl('sender'),
+      await this.keyExchangeUrl('receiver'),
     );
     if (keyExchangeRes === undefined) {
       console.error('Error in key exchange');
@@ -484,10 +487,8 @@ export default class PipingChunk extends Vue {
 
     // Exchange key and Get key
     const keyExchangeRes = await keyExchange(
-      // TODO: SHA path
-      `${this.serverUrl}/${this.dataId}/key_exchange/receiver`,
-      // TODO: SHA path
-      `${this.serverUrl}/${this.dataId}/key_exchange/sender`,
+      await this.keyExchangeUrl('receiver'),
+      await this.keyExchangeUrl('sender'),
     );
     if (keyExchangeRes === undefined) {
       console.error('Error in key exchange');
