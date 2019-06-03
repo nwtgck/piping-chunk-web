@@ -467,7 +467,7 @@ export default class PipingChunk extends Vue {
       uploadStream,
       this.nSimultaneousReqs,
       this.serverUrl,
-      this.dataId,
+      `${this.dataId}/${this.verificationCode}`,
     );
 
     sendPromise.finally(() => {
@@ -544,7 +544,7 @@ export default class PipingChunk extends Vue {
     const readableStream = pipingChunk.getReadableStream(
       this.nSimultaneousReqs,
       this.serverUrl,
-      this.dataId,
+      `${this.dataId}/${this.verificationCode}`,
     );
 
     // Create download stream

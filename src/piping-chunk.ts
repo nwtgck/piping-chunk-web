@@ -1,11 +1,13 @@
 import {PromiseLimiter} from 'promise-limiter';
 import {PromiseSequentialContext} from '@/promise-sequential-context';
+import urlJoin from 'url-join';
+import * as utils from '@/utils';
 
 export async function sendReadableStream(
   readableStream: ReadableStream,
   promiseLimit: number,
   serverUrl: string,
-  dataId: string): Promise<void> {
+  pathPrefix: string): Promise<void> {
   // Create promise limiter
   const promiseLimiter = new PromiseLimiter(promiseLimit);
   // Get reader
@@ -17,7 +19,7 @@ export async function sendReadableStream(
 
     await promiseLimiter.run(async () => {
       // Send a chunk
-      const res = await fetch(`${serverUrl}/${dataId}/${chunkNum}`, {
+      const res = await fetch(urlJoin(serverUrl, await utils.sha256(`${pathPrefix}/${chunkNum}`)), {
         method: 'POST',
         body: chunk,
       });
@@ -35,7 +37,7 @@ export async function sendReadableStream(
     if (done) {
       await promiseLimiter.run(async () => {
         // Send a chunk
-        const res = await fetch(`${serverUrl}/${dataId}/${chunkNum}`, {
+        const res = await fetch(urlJoin(serverUrl, await utils.sha256(`${pathPrefix}/${chunkNum}`)), {
           method: 'POST',
           body: '',
           headers: new Headers({
@@ -57,7 +59,7 @@ export async function sendReadableStream(
 async function* getGenerator(
   promiseLimit: number,
   serverUrl: string,
-  dataId: string): AsyncIterable<{promise: Promise<Uint8Array>}> {
+  pathPrefix: string): AsyncIterable<{promise: Promise<Uint8Array>}> {
   // Create promise limiter
   const promiseLimiter = new PromiseLimiter(promiseLimit);
 
@@ -68,7 +70,7 @@ async function* getGenerator(
   for (let chunkNum = 1; !chunkDone ; chunkNum++) {
     console.log('chunkNum', chunkNum);
     const {promise: chunkPromise} = await promiseLimiter.run(async () => {
-      const res = await fetch(`${serverUrl}/${dataId}/${chunkNum}`);
+      const res = await fetch(urlJoin(serverUrl, await utils.sha256(`${pathPrefix}/${chunkNum}`)));
       if (res.body === null) {
         console.error('Error: res.body === null');
         return Uint8Array.from([]);
