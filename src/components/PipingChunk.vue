@@ -352,12 +352,12 @@ export default class PipingChunk extends Vue {
   private nSimultaneousReqs: number = 2;
   private chunkByteSize: number = 65536; // NOTE: About 65KB
   // Progress bar setting
-  private progressSetting: {show: boolean, indeterminate: boolean, percentage: number} = {
+  private readonly progressSetting: {show: boolean, indeterminate: boolean, percentage: number} = {
     show: false,
     indeterminate: false,
     percentage: 0,
   };
-  private aesGcmIvLength: number = 12;
+  private readonly aesGcmIvLength: number = 12;
   private verificationCode: string = '';
   private sharedKey?: CryptoKey;
   // Whether send/get button is available
@@ -371,17 +371,31 @@ export default class PipingChunk extends Vue {
   private disableVerifyOrAbortButtons: boolean = true;
 
   // RSA keys for signature
-  private rsaKeyPairPromise: PromiseLike<CryptoKeyPair> = crypto.subtle.generateKey(
-    {...signAlg, modulusLength: 4096,  publicExponent: new Uint8Array([0x01, 0x00, 0x01]) },
-    true,
-    ['sign', 'verify'],
-  );
+  private rsaKeyPairPromise: PromiseLike<CryptoKeyPair> = this.generateRsaKeyPair();
   // Key pair for encryption
-  private encryptKeyPairPromise: PromiseLike<CryptoKeyPair> = crypto.subtle.generateKey(
-    { name: 'ECDH', namedCurve: 'P-256'},
-    true,
-    ['deriveKey', 'deriveBits'],
-  );
+  private encryptKeyPairPromise: PromiseLike<CryptoKeyPair> = this.generateEncryptKeyPair();
+
+  private generateRsaKeyPair(): PromiseLike<CryptoKeyPair> {
+    return crypto.subtle.generateKey(
+      {...signAlg, modulusLength: 4096,  publicExponent: new Uint8Array([0x01, 0x00, 0x01]) },
+      true,
+      ['sign', 'verify'],
+    );
+  }
+
+  private generateEncryptKeyPair(): PromiseLike<CryptoKeyPair> {
+    return crypto.subtle.generateKey(
+      { name: 'ECDH', namedCurve: 'P-256'},
+      true,
+      ['deriveKey', 'deriveBits'],
+    );
+  }
+
+  // Update key-pairs for ephemeralness
+  private updateKeyPairs(): void {
+    this.rsaKeyPairPromise     = this.generateRsaKeyPair();
+    this.encryptKeyPairPromise = this.generateEncryptKeyPair();
+  }
 
   // Show error message
   private showSnackbar(message: string): void {
@@ -450,6 +464,8 @@ export default class PipingChunk extends Vue {
     );
     if (keyExchangeRes === undefined) {
       console.error('Error in key exchange');
+      // Update key-pairs for ephemeralness
+      this.updateKeyPairs();
       return;
     }
     // Extract
@@ -495,6 +511,8 @@ export default class PipingChunk extends Vue {
     this.enableActionButton = true;
     // Delete verification code and hide
     this.verificationCode = '';
+    // Update key-pairs for ephemeralness
+    this.updateKeyPairs();
   }
 
   private async send() {
@@ -503,6 +521,8 @@ export default class PipingChunk extends Vue {
     if (pondFile === null) {
       // Show error message
       this.showSnackbar('Error: No file selected');
+      // Update key-pairs for ephemeralness
+      this.updateKeyPairs();
       return;
     }
 
@@ -547,6 +567,8 @@ export default class PipingChunk extends Vue {
       this.enableActionButton = true;
       // Delete verification code and hide
       this.verificationCode = '';
+      // Update key-pairs for ephemeralness
+      this.updateKeyPairs();
     });
   }
 
@@ -569,6 +591,8 @@ export default class PipingChunk extends Vue {
     );
     if (keyExchangeRes === undefined) {
       console.error('Error in key exchange');
+      // Update key-pairs for ephemeralness
+      this.updateKeyPairs();
       return;
     }
     // Extract
@@ -597,6 +621,8 @@ export default class PipingChunk extends Vue {
     );
     if (verificationParcel === undefined) {
       console.error('Format error of verificationParcel');
+      // Update key-pairs for ephemeralness
+      this.updateKeyPairs();
       return;
     }
     if (!verificationParcel.content.verified) {
@@ -606,6 +632,8 @@ export default class PipingChunk extends Vue {
       this.enableActionButton = true;
       // Delete verification code and hide
       this.verificationCode = '';
+      // Update key-pairs for ephemeralness
+      this.updateKeyPairs();
       return;
     }
 
@@ -662,6 +690,8 @@ export default class PipingChunk extends Vue {
     this.enableActionButton = true;
     // Delete verification code and hide
     this.verificationCode = '';
+    // Update key-pairs for ephemeralness
+    this.updateKeyPairs();
   }
 }
 
