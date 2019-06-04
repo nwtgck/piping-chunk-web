@@ -143,13 +143,57 @@ const jsonWebKeyFormat = obj({
   y: opt(str),
 });
 
+const ecJsonWebKeyFormat = obj({
+  alg: opt(str),
+  crv: opt(str),
+  d: opt(str),
+  dp: opt(str),
+  dq: opt(str),
+  e: opt(str),
+  ext: opt(bool),
+  k: opt(str),
+  key_ops: opt(arr(str)),
+  kty: literal('EC' as const),
+  n: opt(str),
+  oth: opt(arr(rsaOtherPrimesInfoFormat)),
+  p: opt(str),
+  q: opt(str),
+  qi: opt(str),
+  use: opt(str),
+  x: opt(str),
+  y: opt(str),
+});
+
+const rsaJsonWebKeyFormat = obj({
+  alg: opt(str),
+  crv: opt(str),
+  d: opt(str),
+  dp: opt(str),
+  dq: opt(str),
+  e: opt(str),
+  ext: opt(bool),
+  k: opt(str),
+  key_ops: opt(arr(str)),
+  kty: literal('RSA' as const),
+  n: opt(str),
+  oth: opt(arr(rsaOtherPrimesInfoFormat)),
+  p: opt(str),
+  q: opt(str),
+  qi: opt(str),
+  use: opt(str),
+  x: opt(str),
+  y: opt(str),
+});
+
 const keyExchangeParcelFormat = obj({
   kind: literal('key_exchange' as const),
   content: obj({
-    // Public key for verification code generation
-    verificationCodePublicJwk: jsonWebKeyFormat,
+    // Public RSA key for signature
+    rsaPublicJWk: rsaJsonWebKeyFormat,
     // Public key for encryption
-    encryptPublicJwk: jsonWebKeyFormat,
+    encryptPublicJwk: ecJsonWebKeyFormat,
+    // Signature of thumbprint of public key for encryption
+    encryptPublicJwkThumbprintSignature: str,
   }),
 });
 type KeyExchangeParcel = TsType<typeof keyExchangeParcelFormat>;
@@ -161,6 +205,9 @@ const verificationParcelFormat = obj({
   }),
 });
 type VerificationParcel = TsType<typeof verificationParcelFormat>;
+
+// Signature algorithm
+const signAlg = { name: 'RSASSA-PKCS1-v1_5', hash: { name: 'SHA-256' } };
 
 (async () => {
   try {
@@ -180,70 +227,62 @@ const FilePond = vueFilePond();
 
 // Generate verification code
 async function generateVerificationCode(
-  verificationCodePublicJwk: JsonWebKey,
-  verificationPrivateKey: CryptoKey,
+  // NOTE: The order of arguments is not important
+  rsaPublicJwk1: JsonWebKey & {kty: 'RSA'},
+  rsaPublicJwk2: JsonWebKey & {kty: 'RSA'},
 ): Promise<string> {
-  // Convert JWK To CryptoKey
-  const verificationCodePublicKey: CryptoKey = await crypto.subtle.importKey(
-    'jwk',
-    verificationCodePublicJwk,
-    {name: 'ECDH', namedCurve: 'P-256'},
-    true,
-    [],
-  );
-  // Create secret key for verification code generation
-  const verificationCodeKey: CryptoKey = await crypto.subtle.deriveKey(
-    { name: 'ECDH', public: verificationCodePublicKey },
-    verificationPrivateKey,
-    {name: 'AES-GCM', length: 128},
-    true,
-    ['encrypt', 'decrypt'],
-  );
-  // Convert the secret key to JWK
-  // NOTE: 'kty' should be 'oct'  logically
-  const verificationCodeJwk: JsonWebKey & {kty: 'oct'} = await window.crypto.subtle.exportKey(
-    'jwk',
-    verificationCodeKey,
-  ) as (JsonWebKey & {kty: 'oct'});
-  // Get JWK thumbprint by hex
-  return jwkThumbprintByEncoding(verificationCodeJwk, 'SHA-256', 'hex')
-    // Get top 32
-    .substring(0, 32);
+  // Get thumbprints
+  const rsaPublicThumbprint1: string = jwkThumbprintByEncoding(rsaPublicJwk1, 'SHA-256', 'hex');
+  const rsaPublicThumbprint2: string = jwkThumbprintByEncoding(rsaPublicJwk2, 'SHA-256', 'hex');
+
+  // NOTE: sort is for uniqueness
+  return (await utils.sha256([
+    rsaPublicThumbprint1,
+    rsaPublicThumbprint2,
+  ].sort().join('-'))).substring(0, 32);
 }
 
 /**
  * Key exchange
+ * @param rsaKeyPair
+ * @param encryptKeyPair
  * @param myUrl
  * @param peerUrl
  */
 async function keyExchange(
+  rsaKeyPair: CryptoKeyPair,
+  encryptKeyPair: CryptoKeyPair,
   myUrl: string,
   peerUrl: string,
 ): Promise<{sharedKey: CryptoKey, verificationCode: string} | undefined> {
-  // Key pair to create verification code
-  const verificationCodeKeyPair: CryptoKeyPair = await window.crypto.subtle.generateKey(
-    { name: 'ECDH', namedCurve: 'P-256'},
-    true,
-    ['deriveKey', 'deriveBits'],
-  );
-  // Key pair for encryption
-  const encryptKeyPair: CryptoKeyPair = await window.crypto.subtle.generateKey(
-    { name: 'ECDH', namedCurve: 'P-256'},
-    true,
-    ['deriveKey', 'deriveBits'],
-  );
+  // NOTE: kty should be 'EC' because it's ECDH key
+  const encryptPublicJwk: JsonWebKey & {kty: 'EC'} = await crypto.subtle.exportKey(
+    'jwk',
+    encryptKeyPair.publicKey,
+  ) as JsonWebKey & {kty: 'EC'};
+  // Sign the public key for encryption and base64 encode
+  const encryptPublicJwkThumbprintSignature: string = btoa(utils.arrayBufferToString(
+    await window.crypto.subtle.sign(
+      signAlg,
+      rsaKeyPair.privateKey,
+      jwkThumbprintByEncoding(encryptPublicJwk, 'SHA-256', 'uint8array'),
+    ),
+  ));
+  // Get RSA public key as JWK
+  const rsaPublicJWk = await crypto.subtle.exportKey(
+    'jwk',
+    rsaKeyPair.publicKey,
+  ) as {kty: 'RSA'};
   const keyExchangeParcel: KeyExchangeParcel = {
     kind: 'key_exchange',
     content: {
-      verificationCodePublicJwk: await crypto.subtle.exportKey(
-        'jwk',
-        verificationCodeKeyPair.publicKey,
-      ),
+      rsaPublicJWk,
       // Public key for encryption
       encryptPublicJwk: await crypto.subtle.exportKey(
         'jwk',
         encryptKeyPair.publicKey,
-      ),
+      ) as {kty: 'EC'}, // NOTE: kty is 'EC' logically
+      encryptPublicJwkThumbprintSignature: encryptPublicJwkThumbprintSignature,
     },
   };
   // Exchange keys
@@ -257,13 +296,31 @@ async function keyExchange(
     console.error('Format of peer\'s key exchange was wrong');
     return undefined;
   }
+  // Get peer's RSA public key
+  const peerRsaPublicJWk = peerKeyExchangeParcel.content.rsaPublicJWk;
+  // Get peer's public for encryption
+  const peerEncryptPublicJwk = peerKeyExchangeParcel.content.encryptPublicJwk;
+
+  // Verify peer's public key for encryption by peer's public RSA key
+  const verified = await crypto.subtle.verify(
+    signAlg,
+    await crypto.subtle.importKey('jwk', peerRsaPublicJWk, signAlg, true, ['verify']),
+    utils.stringToArrayBuffer(atob(peerKeyExchangeParcel.content.encryptPublicJwkThumbprintSignature)),
+    jwkThumbprintByEncoding(peerEncryptPublicJwk, 'SHA-256', 'uint8array'),
+  );
+  if (!verified) {
+    console.error('Peer public key for encryption is not verified');
+    return undefined;
+  }
+
   const peerPublicKey: CryptoKey = await crypto.subtle.importKey(
     'jwk',
-    peerKeyExchangeParcel.content.encryptPublicJwk,
+    peerEncryptPublicJwk,
     {name: 'ECDH', namedCurve: 'P-256'},
     true,
     [],
   );
+
   // Get shared key
   const sharedKey: CryptoKey = await crypto.subtle.deriveKey(
     { name: 'ECDH', public: peerPublicKey },
@@ -276,8 +333,8 @@ async function keyExchange(
     sharedKey,
     // Generate verification code
     verificationCode: await generateVerificationCode(
-      peerKeyExchangeParcel.content.verificationCodePublicJwk,
-      verificationCodeKeyPair.privateKey,
+      rsaPublicJWk,
+      peerRsaPublicJWk,
     ),
   };
 }
@@ -312,6 +369,19 @@ export default class PipingChunk extends Vue {
   // Whether stream-download is supported
   private readonly streamDownloadSupported = streamSaver.supported;
   private disableVerifyOrAbortButtons: boolean = true;
+
+  // RSA keys for signature
+  private rsaKeyPairPromise: PromiseLike<CryptoKeyPair> = crypto.subtle.generateKey(
+    {...signAlg, modulusLength: 4096,  publicExponent: new Uint8Array([0x01, 0x00, 0x01]) },
+    true,
+    ['sign', 'verify'],
+  );
+  // Key pair for encryption
+  private encryptKeyPairPromise: PromiseLike<CryptoKeyPair> = crypto.subtle.generateKey(
+    { name: 'ECDH', namedCurve: 'P-256'},
+    true,
+    ['deriveKey', 'deriveBits'],
+  );
 
   // Show error message
   private showSnackbar(message: string): void {
@@ -373,6 +443,8 @@ export default class PipingChunk extends Vue {
 
     // Exchange key and Get key
     const keyExchangeRes = await keyExchange(
+      await this.rsaKeyPairPromise,
+      await this.encryptKeyPairPromise,
       await this.keyExchangeUrl('sender'),
       await this.keyExchangeUrl('receiver'),
     );
@@ -490,6 +562,8 @@ export default class PipingChunk extends Vue {
 
     // Exchange key and Get key
     const keyExchangeRes = await keyExchange(
+      await this.rsaKeyPairPromise,
+      await this.encryptKeyPairPromise,
       await this.keyExchangeUrl('receiver'),
       await this.keyExchangeUrl('sender'),
     );
