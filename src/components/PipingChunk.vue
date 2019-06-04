@@ -202,6 +202,7 @@ const verificationParcelFormat = obj({
   kind: literal('verification' as const),
   content: obj({
     verified: bool,
+    verificationSignature: str,
   }),
 });
 type VerificationParcel = TsType<typeof verificationParcelFormat>;
@@ -254,7 +255,7 @@ async function keyExchange(
   encryptKeyPair: CryptoKeyPair,
   myUrl: string,
   peerUrl: string,
-): Promise<{sharedKey: CryptoKey, verificationCode: string} | undefined> {
+): Promise<{sharedKey: CryptoKey, verificationCode: string, peerRsaPublicJWk: JsonWebKey} | undefined> {
   // NOTE: kty should be 'EC' because it's ECDH key
   const encryptPublicJwk: JsonWebKey & {kty: 'EC'} = await crypto.subtle.exportKey(
     'jwk',
@@ -336,6 +337,7 @@ async function keyExchange(
       rsaPublicJWk,
       peerRsaPublicJWk,
     ),
+    peerRsaPublicJWk,
   };
 }
 
@@ -478,11 +480,28 @@ export default class PipingChunk extends Vue {
     this.disableVerifyOrAbortButtons = false;
   }
 
+  // Generate target of verification signature
+  private verificationSignatureSeed(verified: boolean): Uint8Array {
+    // NOTE: Verification Code is ephemeral because the RSA key pair is used one time.
+    return new TextEncoder().encode(
+      `verification/${verified}/${this.verificationCode}`,
+    );
+  }
+
   private async sendVerification(verified: boolean) {
+    // Sign verification and base64-encode
+    const verificationSignature: string = btoa(utils.arrayBufferToString(
+      await window.crypto.subtle.sign(
+        signAlg,
+        (await this.rsaKeyPairPromise).privateKey,
+        this.verificationSignatureSeed(verified),
+      ),
+    ));
     const verificationParcel: VerificationParcel = {
       kind: 'verification',
       content: {
         verified,
+        verificationSignature,
       },
     };
     // Encrypt
@@ -596,7 +615,7 @@ export default class PipingChunk extends Vue {
       return;
     }
     // Extract
-    const {sharedKey, verificationCode} = keyExchangeRes;
+    const {sharedKey, verificationCode, peerRsaPublicJWk} = keyExchangeRes;
     this.sharedKey = sharedKey;
     // Assign verification code
     this.verificationCode = verificationCode;
@@ -625,7 +644,27 @@ export default class PipingChunk extends Vue {
       this.updateKeyPairs();
       return;
     }
-    if (!verificationParcel.content.verified) {
+    // Get whether the sender was verified or not
+    const senderVerified = verificationParcel.content.verified;
+    // Verify the sender's verification was truly sent by the serder
+    const verified = await crypto.subtle.verify(
+      signAlg,
+      await crypto.subtle.importKey('jwk', peerRsaPublicJWk, signAlg, true, ['verify']),
+      utils.stringToArrayBuffer(atob(verificationParcel.content.verificationSignature)),
+      this.verificationSignatureSeed(senderVerified),
+    );
+    if (!verified) {
+      // Show error message
+      this.showSnackbar('Sender\'s verification was wrong');
+      // Enable the button again
+      this.enableActionButton = true;
+      // Delete verification code and hide
+      this.verificationCode = '';
+      // Update key-pairs for ephemeralness
+      this.updateKeyPairs();
+      return;
+    }
+    if (!senderVerified) {
       // Show error message
       this.showSnackbar('Sender aborts');
       // Enable the button again
@@ -694,7 +733,6 @@ export default class PipingChunk extends Vue {
     this.updateKeyPairs();
   }
 }
-
 </script>
 
 <!-- Add "scoped" attribute to limit CSS to this component only -->
