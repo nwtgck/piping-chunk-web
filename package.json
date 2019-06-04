@@ -1,6 +1,6 @@
 {
   "name": "piping-chunk",
-  "version": "0.6.1",
+  "version": "0.6.2-SNAPSHOT",
   "private": true,
   "scripts": {
     "serve": "vue-cli-service serve",
