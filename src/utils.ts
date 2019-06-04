@@ -79,3 +79,15 @@ export async function sha256(input: string): Promise<string> {
     await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input)),
   );
 }
+
+// (from: https://gist.github.com/kawanet/352a2ed1d1656816b2bc)
+export function stringToArrayBuffer(str: string): ArrayBuffer {
+  const numbers: number[] = [].map.call(str, (c: string) => {
+    return c.charCodeAt(0);
+  }) as any; // TODO: Not use any
+  return new Uint8Array(numbers).buffer;
+}
+
+export function arrayBufferToString(arr: ArrayBuffer) {
+  return String.fromCharCode(... new Uint8Array(arr));
+}
