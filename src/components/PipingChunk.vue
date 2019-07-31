@@ -4,11 +4,11 @@
       <v-card style="padding: 1em;">
 
         <v-btn-toggle v-model="sendOrGet" mandatory style="margin-bottom: 2em;">
-          <v-btn flat value="send">
+          <v-btn text value="send">
             Send
             <v-icon right dark>file_upload</v-icon>
           </v-btn>
-          <v-btn flat value="get">
+          <v-btn text value="get">
             Get
             <v-icon right dark>file_download</v-icon>
           </v-btn>
@@ -61,10 +61,9 @@
           <v-icon right dark>file_download</v-icon>
         </v-btn>
         <span v-if="verificationCode !== ''">
-          <v-alert type="info" value="true"
-          >
-          <span style="font-size: 1.2em">Verification Code: <b>{{ verificationCode }}</b></span>
-        </v-alert>
+          <v-alert type="info">
+            <span style="font-size: 1.2em">Verification Code: <b>{{ verificationCode }}</b></span>
+          </v-alert>
 
         <v-layout v-if="sendOrGet === 'send'">
           <v-flex xs6>
