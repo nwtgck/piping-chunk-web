@@ -22,7 +22,7 @@
     "vue-class-component": "^7.1.0",
     "vue-filepond": "^5.1.2",
     "vue-property-decorator": "^8.2.1",
-    "vuetify": "^1.5.16",
+    "vuetify": "^2.0.2",
     "web-streams-polyfill": "^2.0.3"
   },
   "devDependencies": {
@@ -35,7 +35,11 @@
     "@vue/cli-plugin-typescript": "^3.9.0",
     "@vue/cli-service": "^3.9.3",
     "material-design-icons-iconfont": "^5.0.1",
+    "sass": "^1.22.9",
+    "sass-loader": "^7.1.0",
     "typescript": "^3.5.3",
-    "vue-template-compiler": "^2.5.21"
+    "vue-cli-plugin-vuetify": "^0.6.1",
+    "vue-template-compiler": "^2.5.21",
+    "vuetify-loader": "^1.3.0"
   }
 }
