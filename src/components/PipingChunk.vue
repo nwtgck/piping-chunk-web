@@ -71,7 +71,7 @@
                    @click="verifyAndSend()"
                    :disabled="disableVerifyOrAbortButtons"
                    block>
-              <v-icon right dark>check</v-icon>
+              <v-icon left dark>check</v-icon>
               Verify & Send
             </v-btn>
           </v-flex>
@@ -80,7 +80,7 @@
                    @click="abortSending()"
                    :disabled="disableVerifyOrAbortButtons"
                    block>
-              <v-icon right dark>cancel</v-icon>
+              <v-icon left dark>cancel</v-icon>
               Abort
             </v-btn>
           </v-flex>
