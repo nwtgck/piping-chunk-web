@@ -23,7 +23,7 @@
     "vue-filepond": "^5.1.2",
     "vue-property-decorator": "^8.2.1",
     "vuetify": "^2.0.2",
-    "web-streams-polyfill": "^2.0.3"
+    "web-streams-polyfill": "^2.0.4"
   },
   "devDependencies": {
     "@fortawesome/fontawesome": "^1.1.8",
