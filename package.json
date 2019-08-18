@@ -1,6 +1,6 @@
 {
   "name": "piping-chunk",
-  "version": "0.6.5",
+  "version": "0.6.6",
   "private": true,
   "scripts": {
     "serve": "vue-cli-service serve",
@@ -11,7 +11,7 @@
     "aes128gcm-stream": "git+https://github.com/nwtgck/aes128gcm-stream-npm.git#v0.1.3",
     "core-js": "^2.6.7",
     "file-saver": "^2.0.2",
-    "filepond": "^4.4.11",
+    "filepond": "^4.4.13",
     "jwk-thumbprint": "^0.1.2",
     "promise-limiter": "git+https://github.com/nwtgck/promise-limiter-npm.git#v0.1.0",
     "register-service-worker": "^1.6.2",
@@ -20,26 +20,26 @@
     "url-join": "^4.0.1",
     "vue": "^2.6.10",
     "vue-class-component": "^7.1.0",
-    "vue-filepond": "^5.1.2",
+    "vue-filepond": "^5.1.3",
     "vue-property-decorator": "^8.2.1",
-    "vuetify": "^2.0.2",
-    "web-streams-polyfill": "^2.0.3"
+    "vuetify": "^2.0.7",
+    "web-streams-polyfill": "^2.0.4"
   },
   "devDependencies": {
     "@fortawesome/fontawesome": "^1.1.8",
     "@fortawesome/fontawesome-free-brands": "^5.0.13",
     "@types/file-saver": "^2.0.1",
     "@types/url-join": "^4.0.0",
-    "@vue/cli-plugin-babel": "^3.9.2",
-    "@vue/cli-plugin-pwa": "^3.9.0",
-    "@vue/cli-plugin-typescript": "^3.9.0",
-    "@vue/cli-service": "^3.9.3",
+    "@vue/cli-plugin-babel": "^3.10.0",
+    "@vue/cli-plugin-pwa": "^3.10.0",
+    "@vue/cli-plugin-typescript": "^3.10.0",
+    "@vue/cli-service": "^3.10.0",
     "material-design-icons-iconfont": "^5.0.1",
-    "sass": "^1.22.9",
-    "sass-loader": "^7.1.0",
+    "sass": "^1.22.10",
+    "sass-loader": "^7.2.0",
     "typescript": "^3.5.3",
-    "vue-cli-plugin-vuetify": "^0.6.1",
-    "vue-template-compiler": "^2.5.21",
+    "vue-cli-plugin-vuetify": "^0.6.3",
+    "vue-template-compiler": "^2.6.10",
     "vuetify-loader": "^1.3.0"
   }
 }
