@@ -33,7 +33,7 @@
     "@vue/cli-plugin-babel": "^3.10.0",
     "@vue/cli-plugin-pwa": "^3.10.0",
     "@vue/cli-plugin-typescript": "^3.10.0",
-    "@vue/cli-service": "^3.10.0",
+    "@vue/cli-service": "^3.11.0",
     "material-design-icons-iconfont": "^5.0.1",
     "sass": "^1.22.10",
     "sass-loader": "^7.2.0",
