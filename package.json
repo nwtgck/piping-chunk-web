@@ -11,7 +11,7 @@
     "aes128gcm-stream": "git+https://github.com/nwtgck/aes128gcm-stream-npm.git#v0.1.3",
     "core-js": "^2.6.9",
     "file-saver": "^2.0.2",
-    "filepond": "^4.6.1",
+    "filepond": "^4.12.0",
     "jwk-thumbprint": "^0.1.2",
     "promise-limiter": "git+https://github.com/nwtgck/promise-limiter-npm.git#v0.1.0",
     "register-service-worker": "^1.6.2",
