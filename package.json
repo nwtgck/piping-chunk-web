@@ -14,7 +14,7 @@
     "filepond": "^4.6.1",
     "jwk-thumbprint": "^0.1.2",
     "promise-limiter": "git+https://github.com/nwtgck/promise-limiter-npm.git#v0.1.0",
-    "register-service-worker": "^1.6.2",
+    "register-service-worker": "^1.7.1",
     "streamsaver": "^2.0.3",
     "ts-json-validator": "git+https://github.com/nwtgck/ts-json-validator.git#v0.1.2",
     "url-join": "^4.0.1",
