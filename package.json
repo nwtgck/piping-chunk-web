@@ -12,7 +12,7 @@
     "core-js": "^2.6.9",
     "file-saver": "^2.0.2",
     "filepond": "^4.6.1",
-    "jwk-thumbprint": "^0.1.2",
+    "jwk-thumbprint": "^0.1.4",
     "promise-limiter": "git+https://github.com/nwtgck/promise-limiter-npm.git#v0.1.0",
     "register-service-worker": "^1.6.2",
     "streamsaver": "^2.0.3",
