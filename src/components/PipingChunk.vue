@@ -347,7 +347,7 @@ export default class PipingChunk extends Vue {
   private sendOrGet: 'send' | 'get' = 'send';
   private dataId: string = '';
   // TODO: Hard code
-  private serverUrl: string = 'https://ppng.ml';
+  private serverUrl: string = 'https://ppng.io';
   private nSimultaneousReqs: number = 2;
   private chunkByteSize: number = 65536; // NOTE: About 65KB
   // Progress bar setting
