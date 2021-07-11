@@ -28,7 +28,7 @@
   "devDependencies": {
     "@fortawesome/fontawesome": "^1.1.8",
     "@fortawesome/fontawesome-free-brands": "^5.0.13",
-    "@types/file-saver": "^2.0.1",
+    "@types/file-saver": "^2.0.3",
     "@types/url-join": "^4.0.0",
     "@vue/cli-plugin-babel": "^3.11.0",
     "@vue/cli-plugin-pwa": "^3.11.0",
